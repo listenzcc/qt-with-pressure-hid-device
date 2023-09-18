@@ -124,10 +124,12 @@ class MyWidget(QtWidgets.QMainWindow):
         self.widget_0_0 = QtWidgets.QWidget()
         self.widget_0_1 = QtWidgets.QWidget()
         self.widget_0_2 = QtWidgets.QWidget()
+        self.widget_0_3 = QtWidgets.QWidget()
 
         # --------------------------------------------------------------------------------
         # Make layout 0
         layout = QtWidgets.QHBoxLayout(self.widget_0)
+        layout.addWidget(self.widget_0_3)
         layout.addWidget(self.widget_0_0)
         layout.addWidget(self.widget_0_1)
         layout.addWidget(self.widget_0_2)
@@ -146,9 +148,115 @@ class MyWidget(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(self.widget_0_2)
         self.experiment_stuff(layout)
 
+        # Make layout 0 3
+        layout = QtWidgets.QVBoxLayout(self.widget_0_3)
+        self.display_stuff(layout)
+
     @QtCore.Slot()
     def magic(self):
         self.text.setText(random.choice(self.hello))
+
+    def display_stuff(self, layout):
+        inputs = dict(
+            line1_color=QtWidgets.QPushButton('    '),
+            line1_width=QtWidgets.QSpinBox(),
+            line2_color=QtWidgets.QPushButton('    '),
+            line2_width=QtWidgets.QSpinBox(),
+        )
+
+        def pen2hex(pen):
+            rgb = list(pen.color().toTuple())[:3]
+            string = '#' + ''.join([hex(e).replace('x', '')[-2:] for e in rgb])
+            return string
+
+        # --------------------------------------------------------------------------------
+        groupbox = QtWidgets.QGroupBox('Experiment setup')
+        groupbox.setCheckable(True)
+        layout.addWidget(groupbox)
+        vbox = QtWidgets.QVBoxLayout()
+        groupbox.setLayout(vbox)
+
+        # --------------------------------------------------------------------------------
+        zone1 = QtWidgets.QGroupBox('Line 1')
+        vbox.addWidget(zone1)
+        vbox1 = QtWidgets.QVBoxLayout()
+        zone1.setLayout(vbox1)
+
+        vbox1.addWidget(QtWidgets.QLabel('Color'))
+        vbox1.addWidget(inputs['line1_color'])
+        vbox1.addWidget(QtWidgets.QLabel('Width'))
+        vbox1.addWidget(inputs['line1_width'])
+        inputs['line1_width'].setValue(1)
+        inputs['line1_width'].setMinimum(1)
+        inputs['line1_width'].setMaximum(10)
+
+        # --------------------------------------------------------------------------------
+        zone2 = QtWidgets.QGroupBox('Line 2')
+        vbox.addWidget(zone2)
+        vbox2 = QtWidgets.QVBoxLayout()
+        zone2.setLayout(vbox2)
+
+        vbox2.addWidget(QtWidgets.QLabel('Color'))
+        vbox2.addWidget(inputs['line2_color'])
+        vbox2.addWidget(QtWidgets.QLabel('Width'))
+        vbox2.addWidget(inputs['line2_width'])
+        inputs['line2_width'].setValue(1)
+        inputs['line2_width'].setMinimum(1)
+        inputs['line2_width'].setMaximum(10)
+
+        # --------------------------------------------------------------------------------
+        def _fit_color1():
+            inputs['line1_color'].setStyleSheet(
+                'QPushButton {background-color: ' + pen2hex(self.signal_monitor_widget.pen1) + '}')
+
+        def _change_color1():
+            qColor = QtWidgets.QColorDialog(self).getColor(
+                self.signal_monitor_widget.pen1.color())
+
+            if not qColor.isValid():
+                return
+
+            self.signal_monitor_widget.pen1.setColor(qColor)
+            _fit_color1()
+
+            LOGGER.debug(f'Set line1 color to: {qColor}')
+
+        def _change_width1(width):
+            self.signal_monitor_widget.pen1.setWidth(width)
+
+        _fit_color1()
+        _change_width1(1)
+
+        inputs['line1_color'].clicked.connect(_change_color1)
+        inputs['line1_width'].valueChanged.connect(_change_width1)
+
+        # --------------------------------------------------------------------------------
+        def _fit_color2():
+            inputs['line2_color'].setStyleSheet(
+                'QPushButton {background-color: ' + pen2hex(self.signal_monitor_widget.pen2) + '}')
+
+        def _change_color2():
+            qColor = QtWidgets.QColorDialog(self).getColor(
+                self.signal_monitor_widget.pen2.color())
+
+            if not qColor.isValid():
+                return
+
+            self.signal_monitor_widget.pen2.setColor(qColor)
+            _fit_color2()
+
+            LOGGER.debug(f'Set line1 color to: {qColor}')
+
+        def _change_width2(width):
+            self.signal_monitor_widget.pen2.setWidth(width)
+
+        _fit_color2()
+        _change_width2(1)
+
+        inputs['line2_color'].clicked.connect(_change_color2)
+        inputs['line2_width'].valueChanged.connect(_change_width2)
+
+        return inputs
 
     def experiment_stuff(self, layout):
         inputs = dict(
