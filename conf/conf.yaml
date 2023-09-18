@@ -1,0 +1,9 @@
+display:
+  window_length_seconds: 20
+  delay_seconds: 10
+device:
+  sample_rate: 125
+  product_string: HIDtoUART example
+  g0: 44000
+  g200: 46000
+
