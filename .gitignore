@@ -1,2 +1,4 @@
 log
 resource/hidapi-win.zip
+
+__pycache__
