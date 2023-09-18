@@ -29,6 +29,7 @@ from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QIntValidator
 
 from . import LOGGER, CONF
+from .load_protocols import MyProtocol
 
 # %% ---- 2023-09-17 ------------------------
 # Function and class
@@ -94,6 +95,7 @@ class MyWidget(QtWidgets.QMainWindow):
     window_length_pnts = CONF['display']['window_length_seconds'] * \
         CONF['device']['sample_rate']
     window_title = 'Signal monitor'
+    my_protocol = MyProtocol()
 
     def __init__(self):
         # super(MyWidget, self).__init__()
@@ -151,13 +153,14 @@ class MyWidget(QtWidgets.QMainWindow):
     def experiment_stuff(self, layout):
         inputs = dict(
             predefined=QtWidgets.QComboBox(),
-            seconds=QtWidgets.QLineEdit(),
+            seconds=QtWidgets.QSpinBox(),
             real=QtWidgets.QPushButton('Real'),
             fake=QtWidgets.QPushButton('Fake'),
             empty=QtWidgets.QPushButton('Empty'),
             repeat=QtWidgets.QPushButton('Repeat'),
             clear=QtWidgets.QPushButton('Clear'),
             refresh=QtWidgets.QPushButton('Refresh'),
+            save=QtWidgets.QPushButton('Save'),
             _summary=QtWidgets.QTextEdit(),
             _buffer=[]
         )
@@ -172,37 +175,19 @@ class MyWidget(QtWidgets.QMainWindow):
         # --------------------------------------------------------------------------------
         vbox.addWidget(QtWidgets.QLabel('Predefined protocols'))
         vbox.addWidget(inputs['predefined'])
-        inputs['predefined'].addItems([
-            '---- (Begin from zero)',
-            'Protocol 1 (Single block)',
-            'Protocol 2 (Alternating blocks)'
-        ])
+
+        for k, v in self.my_protocol.protocols.items():
+            txt = f'{k} | {v.get("name", "")}'
+            inputs['predefined'].addItems([txt])
 
         def _change_protocol():
             protocol = inputs['predefined'].currentText()
-            print(protocol)
 
-            if protocol.startswith('----'):
-                _clear()
+            k = protocol.split(' | ')[0]
 
-            if protocol.startswith('Protocol 1'):
-                _clear()
-                inputs['_buffer'] = [
-                    ('Real', 60),
-                ]
+            _clear()
 
-            if protocol.startswith('Protocol 2'):
-                _clear()
-                inputs['_buffer'] = [
-                    ('Real', 60),
-                    ('Fake', 60),
-                    ('Real', 60),
-                    ('Fake', 60),
-                    ('Real', 60),
-                    ('Fake', 60),
-                    ('Real', 60),
-                    ('Fake', 60),
-                ]
+            inputs['_buffer'] = self.my_protocol.get_buffer(k)
 
             _update_summary()
 
@@ -211,8 +196,9 @@ class MyWidget(QtWidgets.QMainWindow):
         # --------------------------------------------------------------------------------
         vbox.addWidget(QtWidgets.QLabel('Block length (seconds):'))
         vbox.addWidget(inputs['seconds'])
-        inputs['seconds'].setValidator(QIntValidator())
-        inputs['seconds'].setText('60')
+        inputs['seconds'].setValue(60)
+        inputs['seconds'].setMaximum(3600)
+        inputs['seconds'].setMinimum(1)
 
         # --------------------------------------------------------------------------------
         widget = QtWidgets.QWidget()
@@ -236,6 +222,19 @@ class MyWidget(QtWidgets.QMainWindow):
         hbox.addWidget(inputs['repeat'])
         hbox.addWidget(inputs['clear'])
         hbox.addWidget(inputs['refresh'])
+
+        # --------------------------------------------------------------------------------
+        vbox.addWidget(inputs['save'])
+
+        def _save():
+            name, ok = QtWidgets.QInputDialog.getText(
+                self, 'Save protocol', 'Description:')
+
+            if ok:
+                print(f'Saving {name}')
+                self.my_protocol.save(name, inputs['_buffer'])
+
+        inputs['save'].clicked.connect(_save)
 
         # --------------------------------------------------------------------------------
         def _update_summary():

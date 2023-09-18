@@ -1,0 +1,14 @@
+{
+  "name": "Single block",
+  "maker": "system",
+  "_buffer": [
+    ["Real", 60],
+    ["Fake", 60],
+    ["Real", 60],
+    ["Fake", 60],
+    ["Real", 60],
+    ["Fake", 60],
+    ["Real", 60],
+    ["Fake", 60]
+  ]
+}
