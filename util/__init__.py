@@ -37,7 +37,11 @@ conf_path.parent.mkdir(parents=True, exist_ok=True)
 setup = dict(
     display=dict(
         window_length_seconds=20,  # Seconds
-        delay_seconds=10  # Seconds
+        delay_seconds=10,  # Seconds
+        max_value=2000,
+        min_value=-10,
+        ref_value=500,
+        display_ref_flag=True
     ),
     device=dict(
         sample_rate=125,  # Hz

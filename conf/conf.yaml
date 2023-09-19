@@ -1,6 +1,10 @@
 display:
   window_length_seconds: 20
   delay_seconds: 10
+  max_value: 2000
+  min_value: -10
+  ref_value: 500
+  display_ref_flag: true
 device:
   sample_rate: 125
   product_string: HIDtoUART example
