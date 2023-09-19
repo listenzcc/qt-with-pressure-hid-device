@@ -178,8 +178,8 @@ class RealTimeHidReader(object):
                     self.buffer_delay.append((mean, std, max, min, timestamp))
                     self.nd += 1
 
-                if self.n % self.sample_rate == 0:
-                    print(self.n // self.sample_rate, len(self.buffer))
+                # if self.n % self.sample_rate == 0:
+                #     print(self.n // self.sample_rate, len(self.buffer))
 
         t = time.time()
         LOGGER.debug(

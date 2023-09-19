@@ -52,6 +52,7 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication([])
 
     widget = MyWidget()
+    widget.link_reader(real_time_hid_reader)
     # widget.resize(800, 600)
     widget.show()
 

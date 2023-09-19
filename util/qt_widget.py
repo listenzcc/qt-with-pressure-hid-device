@@ -20,13 +20,14 @@ Functions:
 # Requirements and constants
 # import matplotlib
 # matplotlib.use('Qt5Agg')  # noqa
+import time
 
 import random
 
 import pyqtgraph as pg
 
 from PySide6 import QtCore, QtWidgets
-from PySide6.QtGui import QIntValidator
+from PySide6.QtGui import QFont
 
 from . import LOGGER, CONF
 from .load_protocols import MyProtocol
@@ -53,13 +54,44 @@ class SignalMonitorWidget(pg.PlotWidget):
     def set_config(self):
         self.setTitle(self.title)
         self.showGrid(x=True, y=True, alpha=0.5)
+        self.disableAutoRange()
+        self.setYRange(-10, 2000)
 
     def draw(self):
+        # --------------------------------------------------------------------------------
         self.pen1 = self.mkPen(color='#0000a0a0', width=1)
         self.curve1 = self.plot([], [], pen=self.pen1)
 
+        # --------------------------------------------------------------------------------
         self.pen2 = self.mkPen(color='red', width=5)
         self.curve2 = self.plot([], [], pen=self.pen2)
+
+        # self.setXRange(0, 1)
+        # self.setYRange(0, 1)
+        # --------------------------------------------------------------------------------
+        self.block_text = pg.TextItem('Idle')
+        # self.addItem(self.block_text)
+        # self.block_text.setPos(0, 2000)
+        # self.block_text.setPos(0, 0.5)
+        font = QFont()
+        font.setPixelSize(40)
+        self.block_text.setFont(font)
+        self.block_text.setAnchor((0, 0))
+        self.block_text.setFlag(
+            self.block_text.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.block_text.setParentItem(self.plotItem)
+
+        # --------------------------------------------------------------------------------
+        self.status_text = pg.TextItem('--')
+        # self.addItem(self.status_text)
+        # self.status_text.setPos(0, 1000)
+        font = QFont()
+        font.setPixelSize(20)
+        self.status_text.setFont(font)
+        self.status_text.setAnchor((0, 0))
+        self.status_text.setFlag(
+            self.status_text.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.status_text.setParentItem(self.plotItem)
 
         LOGGER.debug(
             f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
@@ -76,6 +108,64 @@ class SignalMonitorWidget(pg.PlotWidget):
 
     def mkPen(self, **kwargs):
         return pg.mkPen(**kwargs)
+
+
+class BlockManager(object):
+    design = []
+
+    def __init__(self, blocks=[]):
+        self.design = self.parse_blocks(blocks)
+        LOGGER.debug(f'Initialized {self.__class__}')
+
+    def parse_blocks(self, blocks):
+        design = []
+
+        if len(blocks) == 0:
+            LOGGER.debug('Parsed empty blocks.')
+            return design
+
+        design.append(dict(
+            idx=0,
+            name=blocks[0][0],
+            duration=blocks[0][1],
+            start=0,
+            stop=blocks[0][1],
+        ))
+
+        for block in blocks[1:]:
+            idx = len(design)
+            duration = block[1]
+            start = design[-1]['stop']
+            stop = start + duration
+
+            design.append(dict(
+                idx=idx,
+                name=block[0],
+                duration=duration,
+                start=start,
+                stop=stop
+            ))
+
+        for d in design:
+            d['duration'] = stop
+            d['blocks'] = idx+1
+
+        LOGGER.debug(f'Parsed blocks design: {design}')
+
+        return design
+
+    def consume(self, t):
+        if len(self.design) == 0:
+            return 'No block at all.'
+
+        if t > self.design[0]['stop']:
+            d = self.design.pop(0)
+            LOGGER.debug(f'Consumed block {d}')
+
+        if len(self.design) == 0:
+            return 'Consumed all the blocks.'
+
+        return self.design[0]
 
 
 class MyWidget(QtWidgets.QMainWindow):
@@ -95,6 +185,8 @@ class MyWidget(QtWidgets.QMainWindow):
     window_length_pnts = CONF['display']['window_length_seconds'] * \
         CONF['device']['sample_rate']
     window_title = 'Signal monitor'
+    device_reader = None
+    block_manager = BlockManager()
     my_protocol = MyProtocol()
 
     def __init__(self):
@@ -146,15 +238,27 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # Make layout 0 2
         layout = QtWidgets.QVBoxLayout(self.widget_0_2)
-        self.experiment_stuff(layout)
+        self.experiment_inputs = self.experiment_stuff(layout)
 
         # Make layout 0 3
         layout = QtWidgets.QVBoxLayout(self.widget_0_3)
         self.display_stuff(layout)
 
+    def link_reader(self, reader):
+        self.device_reader = reader
+
     @QtCore.Slot()
     def magic(self):
         self.text.setText(random.choice(self.hello))
+
+        if self.device_reader is None:
+            return
+
+        self.block_manager = BlockManager(self.experiment_inputs['_buffer'])
+
+        self.device_reader.stop()
+        time.sleep(1)
+        self.device_reader.start()
 
     def display_stuff(self, layout):
         inputs = dict(
@@ -186,7 +290,7 @@ class MyWidget(QtWidgets.QMainWindow):
         vbox1.addWidget(inputs['line1_color'])
         vbox1.addWidget(QtWidgets.QLabel('Width'))
         vbox1.addWidget(inputs['line1_width'])
-        inputs['line1_width'].setValue(1)
+        inputs['line1_width'].setValue(2)
         inputs['line1_width'].setMinimum(1)
         inputs['line1_width'].setMaximum(10)
 
@@ -200,7 +304,7 @@ class MyWidget(QtWidgets.QMainWindow):
         vbox2.addWidget(inputs['line2_color'])
         vbox2.addWidget(QtWidgets.QLabel('Width'))
         vbox2.addWidget(inputs['line2_width'])
-        inputs['line2_width'].setValue(1)
+        inputs['line2_width'].setValue(2)
         inputs['line2_width'].setMinimum(1)
         inputs['line2_width'].setMaximum(10)
 
@@ -225,7 +329,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen1.setWidth(width)
 
         _fit_color1()
-        _change_width1(1)
+        _change_width1(2)
 
         inputs['line1_color'].clicked.connect(_change_color1)
         inputs['line1_width'].valueChanged.connect(_change_width1)
@@ -251,7 +355,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen2.setWidth(width)
 
         _fit_color2()
-        _change_width2(1)
+        _change_width2(2)
 
         inputs['line2_color'].clicked.connect(_change_color2)
         inputs['line2_width'].valueChanged.connect(_change_width2)
@@ -469,15 +573,40 @@ class MyWidget(QtWidgets.QMainWindow):
         return inputs
 
     def update_graph(self, pairs=None, pairs_delay=None):
-        self.signal_monitor_widget.disableAutoRange()
 
         if pairs is not None:
             self.signal_monitor_widget.update1(pairs)
 
+            if len(pairs) > 0:
+                t0 = pairs[0][-1]
+                t1 = pairs[-1][-1]
+
+                block = self.block_manager.consume(t1)
+
+                if block == 'Consumed all the blocks.':
+                    LOGGER.debug('Block design is completed.')
+
+                if block == 'No block at all.':
+                    pass
+
+                if isinstance(block, dict):
+                    self.signal_monitor_widget.block_text.setText(
+                        block['name'])
+
+                # self.signal_monitor_widget.status_text.setPos(
+                #     max(t1, self.window_length_seconds), 2000)
+                # self.signal_monitor_widget.block_text.setPos(t0, 2000)
+
+                self.signal_monitor_widget.setXRange(
+                    t0, max(t1, self.window_length_seconds), padding=0)
+
+                if len(pairs) > 1:
+                    n = len(pairs)-1
+                    r = int(n/(t1 - t0)+0.5)
+                    self.signal_monitor_widget.status_text.setText(f'{r} Hz')
+
         if pairs_delay is not None:
             self.signal_monitor_widget.update2(pairs_delay)
-
-        self.signal_monitor_widget.enableAutoRange()
 
         pass
 
