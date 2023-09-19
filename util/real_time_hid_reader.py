@@ -119,6 +119,9 @@ class RealTimeHidReader(object):
             self.device.close()
 
         LOGGER.debug('Stopped the HID device reading loop.')
+        LOGGER.debug(f'The session collects {len(self.buffer)} time points.')
+
+        return self.buffer.copy()
 
     def start(self):
         """Start the getting loop.
@@ -159,7 +162,8 @@ class RealTimeHidReader(object):
                     bytes16 = device.read(16, timeout=100)
                     value = digit2int(bytes16)
                 else:
-                    value = opensimplex.noise2(x=10, y=t * 0.2) * 10000 + 50000
+                    value = (opensimplex.noise2(
+                        x=10, y=t * 0.2) + 1) * 10000 + 44000
                     # x = random.randint(40000, 60000)
 
                 value = self.number2pressure(value)

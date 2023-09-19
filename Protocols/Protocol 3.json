@@ -1,0 +1,8 @@
+{
+  "name": "Debug blocks",
+  "maker": "system",
+  "_buffer": [
+    ["Real", 10],
+    ["Fake", 10]
+  ]
+}
