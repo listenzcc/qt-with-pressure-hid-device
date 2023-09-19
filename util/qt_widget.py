@@ -20,7 +20,9 @@ Functions:
 # Requirements and constants
 # import matplotlib
 # matplotlib.use('Qt5Agg')  # noqa
+import json
 import time
+from datetime import datetime
 
 import random
 
@@ -29,7 +31,7 @@ import pyqtgraph as pg
 from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QFont
 
-from . import LOGGER, CONF
+from . import LOGGER, CONF, root
 from .load_protocols import MyProtocol
 
 # %% ---- 2023-09-17 ------------------------
@@ -66,32 +68,27 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.pen2 = self.mkPen(color='red', width=5)
         self.curve2 = self.plot([], [], pen=self.pen2)
 
-        # self.setXRange(0, 1)
-        # self.setYRange(0, 1)
         # --------------------------------------------------------------------------------
+        legend = self.getPlotItem().addLegend(offset=(10, 10))
         self.block_text = pg.TextItem('Idle')
-        # self.addItem(self.block_text)
-        # self.block_text.setPos(0, 2000)
-        # self.block_text.setPos(0, 0.5)
         font = QFont()
         font.setPixelSize(40)
         self.block_text.setFont(font)
         self.block_text.setAnchor((0, 0))
         self.block_text.setFlag(
             self.block_text.GraphicsItemFlag.ItemIgnoresTransformations)
-        self.block_text.setParentItem(self.plotItem)
+        self.block_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
         self.status_text = pg.TextItem('--')
-        # self.addItem(self.status_text)
-        # self.status_text.setPos(0, 1000)
         font = QFont()
         font.setPixelSize(20)
         self.status_text.setFont(font)
-        self.status_text.setAnchor((0, 0))
+        self.status_text.setAnchor((1, 0))
+        self.status_text.setPos(self.width() - 80, 0)
         self.status_text.setFlag(
             self.status_text.GraphicsItemFlag.ItemIgnoresTransformations)
-        self.status_text.setParentItem(self.plotItem)
+        self.status_text.setParentItem(legend)
 
         LOGGER.debug(
             f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
@@ -147,7 +144,7 @@ class BlockManager(object):
             ))
 
         for d in design:
-            d['duration'] = stop
+            d['total'] = stop
             d['blocks'] = idx+1
 
         LOGGER.debug(f'Parsed blocks design: {design}')
@@ -188,6 +185,7 @@ class MyWidget(QtWidgets.QMainWindow):
     device_reader = None
     block_manager = BlockManager()
     my_protocol = MyProtocol()
+    data_folder_path = root.joinpath('Data')
 
     def __init__(self):
         # super(MyWidget, self).__init__()
@@ -234,7 +232,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # Make layout 0 1
         layout = QtWidgets.QVBoxLayout(self.widget_0_1)
-        self.subject_stuff(layout)
+        self.subject_inputs = self.subject_stuff(layout)
 
         # Make layout 0 2
         layout = QtWidgets.QVBoxLayout(self.widget_0_2)
@@ -251,13 +249,23 @@ class MyWidget(QtWidgets.QMainWindow):
     def magic(self):
         self.text.setText(random.choice(self.hello))
 
-        if self.device_reader is None:
-            return
+        self.button.setDisabled(True)
 
         self.block_manager = BlockManager(self.experiment_inputs['_buffer'])
 
+        if len(self.block_manager.design) == 0:
+            self.button.setDisabled(False)
+            LOGGER.warning(
+                'Tried to start the block designed experiment, but no design was found.')
+            return
+
+        self.setup_snapshot = dict(
+            subject_info=self.subject_inputs['_summary'].toPlainText(),
+            experiment_info=self.experiment_inputs['_buffer']
+        )
+
         self.device_reader.stop()
-        time.sleep(1)
+        # time.sleep(1)
         self.device_reader.start()
 
     def display_stuff(self, layout):
@@ -408,7 +416,7 @@ class MyWidget(QtWidgets.QMainWindow):
         # --------------------------------------------------------------------------------
         vbox.addWidget(QtWidgets.QLabel('Block length (seconds):'))
         vbox.addWidget(inputs['seconds'])
-        inputs['seconds'].setValue(60)
+        inputs['seconds'].setValue(10)
         inputs['seconds'].setMaximum(3600)
         inputs['seconds'].setMinimum(1)
 
@@ -572,6 +580,27 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return inputs
 
+    def save_data(self):
+        data = self.device_reader.stop()
+        subject_info = self.setup_snapshot['subject_info']
+        experiment_info = self.setup_snapshot['experiment_info']
+
+        folder = self.data_folder_path.joinpath(
+            '{}'.format(datetime.strftime(datetime.now(), '%Y-%m-%d-%H-%M-%S')))
+
+        folder.mkdir(exist_ok=True, parents=True)
+
+        json.dump(data, open(folder.joinpath('data.json'), 'w'))
+        json.dump(subject_info, open(folder.joinpath('subject.json'), 'w'))
+        json.dump(experiment_info, open(
+            folder.joinpath('experiment.json'), 'w'))
+
+        LOGGER.debug(f'Saved data into {folder}')
+
+        self.button.setDisabled(False)
+
+        self.device_reader.start()
+
     def update_graph(self, pairs=None, pairs_delay=None):
 
         if pairs is not None:
@@ -584,26 +613,33 @@ class MyWidget(QtWidgets.QMainWindow):
                 block = self.block_manager.consume(t1)
 
                 if block == 'Consumed all the blocks.':
+                    self.signal_monitor_widget.block_text.setText('Finished')
                     LOGGER.debug('Block design is completed.')
+                    self.save_data()
 
                 if block == 'No block at all.':
+                    self.signal_monitor_widget.block_text.setText('Idle')
                     pass
 
                 if isinstance(block, dict):
-                    self.signal_monitor_widget.block_text.setText(
-                        block['name'])
+                    name = block['name']
+                    stop = block['stop']
+                    total = block['total']
 
-                # self.signal_monitor_widget.status_text.setPos(
-                #     max(t1, self.window_length_seconds), 2000)
-                # self.signal_monitor_widget.block_text.setPos(t0, 2000)
+                    txt = f'{name} | {stop-t1:.0f} | {total-t1:.0f}'
+
+                    self.signal_monitor_widget.block_text.setText(txt)
+                    # block['name'])
 
                 self.signal_monitor_widget.setXRange(
                     t0, max(t1, self.window_length_seconds), padding=0)
 
                 if len(pairs) > 1:
                     n = len(pairs)-1
-                    r = int(n/(t1 - t0)+0.5)
-                    self.signal_monitor_widget.status_text.setText(f'{r} Hz')
+                    # r = int(n/(t1 - t0)+0.5)
+                    r = n/(t1 - t0)
+                    self.signal_monitor_widget.status_text.setText(
+                        f'{r:.2f} Hz')
 
         if pairs_delay is not None:
             self.signal_monitor_widget.update2(pairs_delay)
