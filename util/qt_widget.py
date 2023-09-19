@@ -34,6 +34,7 @@ from PySide6.QtGui import QFont
 from . import LOGGER, CONF, root
 from .load_protocols import MyProtocol
 
+
 # %% ---- 2023-09-17 ------------------------
 # Function and class
 
@@ -43,6 +44,8 @@ class SignalMonitorWidget(pg.PlotWidget):
     pg.setConfigOption('foreground', 'k')
     pg.setConfigOption('antialias', True)
     title = 'Main graph'
+    max_value = CONF['display']['max_value']
+    min_value = CONF['display']['min_value']
 
     def __init__(self):
         super().__init__()
@@ -57,16 +60,21 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.setTitle(self.title)
         self.showGrid(x=True, y=True, alpha=0.5)
         self.disableAutoRange()
-        self.setYRange(-10, 2000)
+        self.setYRange(self.min_value, self.max_value)
 
     def draw(self):
         # --------------------------------------------------------------------------------
-        self.pen1 = self.mkPen(color='#0000a0a0', width=1)
+        self.pen1 = self.mkPen(color='blue')
         self.curve1 = self.plot([], [], pen=self.pen1)
 
         # --------------------------------------------------------------------------------
-        self.pen2 = self.mkPen(color='red', width=5)
+        self.pen2 = self.mkPen(color='red')
         self.curve2 = self.plot([], [], pen=self.pen2)
+
+        # --------------------------------------------------------------------------------
+        self.pen3 = self.mkPen(color='green')
+        self.curve3 = self.plot([], [], pen=self.pen3)
+        self.curve3.setOpacity(0.5)
 
         # --------------------------------------------------------------------------------
         legend = self.getPlotItem().addLegend(offset=(10, 10))
@@ -90,6 +98,12 @@ class SignalMonitorWidget(pg.PlotWidget):
             self.status_text.GraphicsItemFlag.ItemIgnoresTransformations)
         self.status_text.setParentItem(legend)
 
+        # --------------------------------------------------------------------------------
+        legend.setZValue(-10000)
+        self.curve1.setZValue(1)
+        self.curve2.setZValue(2)
+        self.curve3.setZValue(-3)
+
         LOGGER.debug(
             f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
 
@@ -102,6 +116,12 @@ class SignalMonitorWidget(pg.PlotWidget):
         ys = [e[0] for e in pairs_delay]
         ts = [e[-1] for e in pairs_delay]
         self.curve2.setData(ts, ys)
+
+    def update3(self, t0, t1, ref_value, flag):
+        if flag:
+            self.curve3.setData([t0, t1], [ref_value, ref_value])
+        else:
+            self.curve3.setData([], [])
 
     def mkPen(self, **kwargs):
         return pg.mkPen(**kwargs)
@@ -181,7 +201,15 @@ class MyWidget(QtWidgets.QMainWindow):
     window_length_seconds = CONF['display']['window_length_seconds']
     window_length_pnts = CONF['display']['window_length_seconds'] * \
         CONF['device']['sample_rate']
+    delay_seconds = CONF['display']['delay_seconds']
+
+    ref_value = CONF['display']['ref_value']
+    max_value = CONF['display']['max_value']
+    min_value = CONF['display']['min_value']
+    display_ref_flag = CONF['display']['display_ref_flag']
+
     window_title = 'Signal monitor'
+
     device_reader = None
     block_manager = BlockManager()
     my_protocol = MyProtocol()
@@ -274,6 +302,9 @@ class MyWidget(QtWidgets.QMainWindow):
             line1_width=QtWidgets.QSpinBox(),
             line2_color=QtWidgets.QPushButton('    '),
             line2_width=QtWidgets.QSpinBox(),
+            line3_color=QtWidgets.QPushButton('    '),
+            line3_width=QtWidgets.QSpinBox(),
+            line3_ref_value=QtWidgets.QDial()
         )
 
         def pen2hex(pen):
@@ -289,7 +320,7 @@ class MyWidget(QtWidgets.QMainWindow):
         groupbox.setLayout(vbox)
 
         # --------------------------------------------------------------------------------
-        zone1 = QtWidgets.QGroupBox('Line 1')
+        zone1 = QtWidgets.QGroupBox('Curve (current)')
         vbox.addWidget(zone1)
         vbox1 = QtWidgets.QVBoxLayout()
         zone1.setLayout(vbox1)
@@ -303,7 +334,7 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['line1_width'].setMaximum(10)
 
         # --------------------------------------------------------------------------------
-        zone2 = QtWidgets.QGroupBox('Line 2')
+        zone2 = QtWidgets.QGroupBox(f'Curve (delay {self.delay_seconds} sec)')
         vbox.addWidget(zone2)
         vbox2 = QtWidgets.QVBoxLayout()
         zone2.setLayout(vbox2)
@@ -315,6 +346,40 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['line2_width'].setValue(2)
         inputs['line2_width'].setMinimum(1)
         inputs['line2_width'].setMaximum(10)
+
+        # --------------------------------------------------------------------------------
+        zone3 = QtWidgets.QGroupBox('Reference')
+        zone3.setCheckable(True)
+        vbox.addWidget(zone3)
+        vbox3 = QtWidgets.QVBoxLayout()
+        zone3.setLayout(vbox3)
+
+        vbox3.addWidget(QtWidgets.QLabel('Color'))
+        vbox3.addWidget(inputs['line3_color'])
+        vbox3.addWidget(QtWidgets.QLabel('Width'))
+        vbox3.addWidget(inputs['line3_width'])
+        label = QtWidgets.QLabel('Ref value = 500')
+        vbox3.addWidget(label)
+        vbox3.addWidget(inputs['line3_ref_value'])
+
+        inputs['line3_width'].setValue(2)
+        inputs['line3_width'].setMinimum(1)
+        inputs['line3_width'].setMaximum(10)
+
+        inputs['line3_ref_value'].setValue(500)
+        inputs['line3_ref_value'].setMinimum(1)
+        inputs['line3_ref_value'].setMaximum(2000)
+
+        def _change_ref_value(v):
+            self.ref_value = v
+            label.setText(f'Ref value = {v}')
+
+        inputs['line3_ref_value'].valueChanged.connect(_change_ref_value)
+
+        def _check_zone3(b):
+            self.display_ref_flag = b
+
+        zone3.toggled.connect(_check_zone3)
 
         # --------------------------------------------------------------------------------
         def _fit_color1():
@@ -357,7 +422,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen2.setColor(qColor)
             _fit_color2()
 
-            LOGGER.debug(f'Set line1 color to: {qColor}')
+            LOGGER.debug(f'Set line2 color to: {qColor}')
 
         def _change_width2(width):
             self.signal_monitor_widget.pen2.setWidth(width)
@@ -367,6 +432,32 @@ class MyWidget(QtWidgets.QMainWindow):
 
         inputs['line2_color'].clicked.connect(_change_color2)
         inputs['line2_width'].valueChanged.connect(_change_width2)
+
+        # --------------------------------------------------------------------------------
+        def _fit_color3():
+            inputs['line3_color'].setStyleSheet(
+                'QPushButton {background-color: ' + pen2hex(self.signal_monitor_widget.pen3) + '}')
+
+        def _change_color3():
+            qColor = QtWidgets.QColorDialog(self).getColor(
+                self.signal_monitor_widget.pen3.color())
+
+            if not qColor.isValid():
+                return
+
+            self.signal_monitor_widget.pen3.setColor(qColor)
+            _fit_color3()
+
+            LOGGER.debug(f'Set line3 color to: {qColor}')
+
+        def _change_width3(width):
+            self.signal_monitor_widget.pen3.setWidth(width)
+
+        _fit_color3()
+        _change_width3(2)
+
+        inputs['line3_color'].clicked.connect(_change_color3)
+        inputs['line3_width'].valueChanged.connect(_change_width3)
 
         return inputs
 
@@ -610,6 +701,9 @@ class MyWidget(QtWidgets.QMainWindow):
                 t0 = pairs[0][-1]
                 t1 = pairs[-1][-1]
 
+                self.signal_monitor_widget.update3(
+                    t0, t1, self.ref_value, self.display_ref_flag)
+
                 block = self.block_manager.consume(t1)
 
                 if block == 'Consumed all the blocks.':
@@ -629,7 +723,6 @@ class MyWidget(QtWidgets.QMainWindow):
                     txt = f'{name} | {stop-t1:.0f} | {total-t1:.0f}'
 
                     self.signal_monitor_widget.block_text.setText(txt)
-                    # block['name'])
 
                 self.signal_monitor_widget.setXRange(
                     t0, max(t1, self.window_length_seconds), padding=0)
