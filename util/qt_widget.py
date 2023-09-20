@@ -350,7 +350,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # Make layout 0 3
         layout = QtWidgets.QVBoxLayout(self.widget_0_3)
-        self.display_stuff(layout)
+        self.display_inputs = self.display_stuff(layout)
 
     def link_reader(self, reader):
         self.device_reader = reader
@@ -359,6 +359,7 @@ class MyWidget(QtWidgets.QMainWindow):
     def terminate(self):
         self.block_manager = BlockManager()
         self.start_button.setDisabled(False)
+        self.terminate_button.setDisabled(True)
         LOGGER.debug(
             'Terminated block designed experiment, and the start_button disable status is released.')
 
@@ -396,6 +397,7 @@ class MyWidget(QtWidgets.QMainWindow):
             line3_color=QtWidgets.QPushButton('    '),
             line3_width=QtWidgets.QSpinBox(),
             line3_ref_value=QtWidgets.QDial(),
+            zone3=QtWidgets.QGroupBox('Ref. value'),
             display_mode=QtWidgets.QComboBox()
         )
 
@@ -446,7 +448,7 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['line2_width'].setMaximum(10)
 
         # --------------------------------------------------------------------------------
-        zone3 = QtWidgets.QGroupBox('Ref. value')
+        zone3 = inputs['zone3']
         zone3.setCheckable(True)
         vbox.addWidget(zone3)
         vbox3 = QtWidgets.QVBoxLayout()
@@ -801,6 +803,7 @@ class MyWidget(QtWidgets.QMainWindow):
         LOGGER.debug(f'Saved data into {folder}')
 
         self.start_button.setDisabled(False)
+        self.terminate_button.setDisabled(True)
 
         self.device_reader.start()
 
@@ -845,7 +848,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return t0, t1, block_name
 
-    def update_line1(self, pairs, t0, t1, block_name, expand_t=0):
+    def update_curve13(self, pairs, t0, t1, block_name, expand_t=0):
         self.signal_monitor_widget.setXRange(
             t0, max(t1, self.window_length_seconds) + expand_t, padding=0)
 
@@ -862,39 +865,59 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return block_name
 
-    def update_line2(self, pairs_delay):
+    def update_curve2(self, pairs_delay):
         if pairs_delay is None:
             return
 
         self.signal_monitor_widget.update2(pairs_delay)
 
-    def update_graph(self, pairs=None, pairs_delay=None):
-        current = self.update_status(pairs)
-
-        if current is None:
-            return
-
-        t0, t1, block_name = current
-
+    def toggle_displays(self):
         if self.display_mode == 'Delayed':
-            self.update_line1(pairs, t0, t1, block_name)
-
-            if block_name == 'Empty':
-                self.update_line2([])
-            else:
-                self.update_line2(pairs_delay)
+            self.signal_monitor_widget.curve1.setVisible(True)
+            self.signal_monitor_widget.curve2.setVisible(True)
+            self.signal_monitor_widget.curve3.setVisible(
+                self.display_inputs['zone3'].isChecked())
+            self.signal_monitor_widget.ellipse4.setVisible(False)
+            self.signal_monitor_widget.ellipse5.setVisible(False)
 
         if self.display_mode == 'Realtime':
-            self.update_line1(pairs, t0, t1, block_name,
-                              expand_t=self.window_length_seconds)
-            self.update_line2([])
+            self.signal_monitor_widget.curve1.setVisible(True)
+            self.signal_monitor_widget.curve2.setVisible(False)
+            self.signal_monitor_widget.curve3.setVisible(
+                self.display_inputs['zone3'].isChecked())
+            self.signal_monitor_widget.ellipse4.setVisible(False)
+            self.signal_monitor_widget.ellipse5.setVisible(False)
+
+        if self.display_mode == 'Circle fit':
+            self.signal_monitor_widget.curve1.setVisible(False)
+            self.signal_monitor_widget.curve2.setVisible(False)
+            self.signal_monitor_widget.curve3.setVisible(False)
+            self.signal_monitor_widget.ellipse4.setVisible(True)
+            self.signal_monitor_widget.ellipse5.setVisible(True)
+
+    def update_graph(self, pairs=None, pairs_delay=None):
+        current_block = self.update_status(pairs)
+
+        if current_block is None:
+            return
+
+        self.toggle_displays()
+
+        t0, t1, block_name = current_block
+
+        if self.display_mode == 'Delayed':
+            self.update_curve13(pairs, t0, t1, block_name)
+
+            if not block_name == 'Empty':
+                self.update_curve2(pairs_delay)
+
+        if self.display_mode == 'Realtime':
+            self.update_curve13(pairs, t0, t1, block_name,
+                                expand_t=self.window_length_seconds)
 
         if self.display_mode == 'Circle fit':
             self.signal_monitor_widget.setXRange(self.signal_monitor_widget.min_value,
                                                  self.signal_monitor_widget.max_value)
-
-            self.update_line2([])
-
             if pairs is not None:
                 if len(pairs) > 0:
                     self.signal_monitor_widget.ellipse5_size_changed(
