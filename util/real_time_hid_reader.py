@@ -160,15 +160,15 @@ class RealTimeHidReader(object):
             else:
                 if valid_device_flag:
                     bytes16 = device.read(16, timeout=100)
-                    value = digit2int(bytes16)
+                    raw_value = digit2int(bytes16)
                 else:
-                    value = (opensimplex.noise2(
+                    raw_value = (opensimplex.noise2(
                         x=10, y=t * 0.2) + 1) * 10000 + 44000
                     # x = random.randint(40000, 60000)
 
-                value = self.number2pressure(value)
+                value = self.number2pressure(raw_value)
 
-                self.buffer.append((value, t-t0))
+                self.buffer.append((value, raw_value, t-t0))
                 self.n += 1
 
                 if self.n > delay_pnts:

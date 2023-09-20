@@ -28,12 +28,13 @@ import random
 
 import pyqtgraph as pg
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtWidgets, QtGui
 from PySide6.QtGui import QFont
 
 from . import LOGGER, CONF, root
 from .load_protocols import MyProtocol
 
+from rich import inspect
 
 # %% ---- 2023-09-17 ------------------------
 # Function and class
@@ -46,6 +47,7 @@ class SignalMonitorWidget(pg.PlotWidget):
     title = 'Main graph'
     max_value = CONF['display']['max_value']
     min_value = CONF['display']['min_value']
+    ref_value = CONF['display']['ref_value']
 
     def __init__(self):
         super().__init__()
@@ -62,6 +64,37 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.disableAutoRange()
         self.setYRange(self.min_value, self.max_value)
 
+    def ellipse4_size_changed(self, ref_value):
+        cx = (self.max_value + self.min_value) / 2
+        cy = (self.max_value + self.min_value) / 2
+        w = ref_value
+        h = ref_value
+        x = cx - w/2
+        y = cy - h/2
+
+        self.ref_value = ref_value
+
+        self.ellipse4.setRect(x, y, w, h)
+
+    def ellipse5_size_changed(self, value):
+        cx = (self.max_value + self.min_value) / 2
+        cy = (self.max_value + self.min_value) / 2
+
+        r = 1 - 2 ** (-abs(value - self.ref_value) / self.ref_value)
+
+        if value > self.ref_value:
+            # The pressure is large, pitch the circle
+            w = self.ref_value * (1+r)
+            h = 2 * self.ref_value - w
+        else:
+            h = self.ref_value * (1+r)
+            w = 2 * self.ref_value - h
+
+        x = cx - w/2
+        y = cy - h/2
+
+        self.ellipse5.setRect(x, y, w, h)
+
     def draw(self):
         # --------------------------------------------------------------------------------
         self.pen1 = self.mkPen(color='blue')
@@ -74,7 +107,20 @@ class SignalMonitorWidget(pg.PlotWidget):
         # --------------------------------------------------------------------------------
         self.pen3 = self.mkPen(color='green')
         self.curve3 = self.plot([], [], pen=self.pen3)
-        self.curve3.setOpacity(0.5)
+
+        # --------------------------------------------------------------------------------
+        self.pen4 = self.mkPen(color='red', width=5)
+        self.ellipse4 = QtWidgets.QGraphicsEllipseItem(
+            1000-250, 1000-250, 500, 500)
+        self.ellipse4.setPen(self.pen4)
+        self.addItem(self.ellipse4)
+
+        # --------------------------------------------------------------------------------
+        self.pen5 = self.mkPen(color='black', width=3)
+        self.ellipse5 = QtWidgets.QGraphicsEllipseItem(
+            1000-250, 1000-250, 500, 500)
+        self.ellipse5.setPen(self.pen5)
+        self.addItem(self.ellipse5)
 
         # --------------------------------------------------------------------------------
         legend = self.getPlotItem().addLegend(offset=(10, 10))
@@ -99,10 +145,10 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.status_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
-        legend.setZValue(-10000)
-        self.curve1.setZValue(1)
-        self.curve2.setZValue(2)
-        self.curve3.setZValue(-3)
+        legend.setZValue(-10000000)
+        self.curve3.setZValue(1)
+        self.curve1.setZValue(2)
+        self.curve2.setZValue(3)
 
         LOGGER.debug(
             f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
@@ -135,6 +181,14 @@ class BlockManager(object):
         LOGGER.debug(f'Initialized {self.__class__}')
 
     def parse_blocks(self, blocks):
+        """Parse the input block design
+
+        Args:
+            blocks (list): The list of blocks.
+
+        Returns:
+            list: rich information blocks.
+        """
         design = []
 
         if len(blocks) == 0:
@@ -172,6 +226,22 @@ class BlockManager(object):
         return design
 
     def consume(self, t):
+        """Consume the block if necessary
+
+        ** Consumed all the blocks ** is a very special output,
+        it refers the blocks end, and it is a once for all output, never repeated.
+
+        Args:
+            t (float): The time from blocks beginning.
+
+        Returns:
+            str or dict: dict refers the dict,
+                         str refers the blocks are empty,
+                        * No block at all: The block design is empty, it refers nothing is running and abnormal;
+                        * Consumed all the blocks: The block design is currently finished, it refers the experiment closes correctly,
+                          it calls for experiment stopping workload, like saving data or something like that.
+        """
+
         if len(self.design) == 0:
             return 'No block at all.'
 
@@ -208,6 +278,9 @@ class MyWidget(QtWidgets.QMainWindow):
     min_value = CONF['display']['min_value']
     display_ref_flag = CONF['display']['display_ref_flag']
 
+    display_mode = 'Realtime'
+    display_modes = ['Realtime', 'Delayed', 'Circle fit']
+
     window_title = 'Signal monitor'
 
     device_reader = None
@@ -226,11 +299,15 @@ class MyWidget(QtWidgets.QMainWindow):
         self.hello = ["Hello world", "Hallo Welt", "你好",
                       "Hei maailma", "Hola Mundo", "Привет мир"]
 
-        self.button = QtWidgets.QPushButton("Click me!")
+        self.start_button = QtWidgets.QPushButton("Start")
+        self.terminate_button = QtWidgets.QPushButton("Terminate")
+
         self.text = QtWidgets.QLabel("Hello World",
                                      alignment=QtCore.Qt.AlignCenter)
 
-        self.button.clicked.connect(self.magic)
+        self.start_button.clicked.connect(self.magic)
+        self.terminate_button.clicked.connect(self.terminate)
+        self.terminate_button.setDisabled(True)
 
         # --------------------------------------------------------------------------------
         self.signal_monitor_widget = SignalMonitorWidget()
@@ -255,7 +332,12 @@ class MyWidget(QtWidgets.QMainWindow):
         # Make layout 0 0
         layout = QtWidgets.QVBoxLayout(self.widget_0_0)
         layout.addWidget(self.text)
-        layout.addWidget(self.button)
+        widget = QtWidgets.QWidget()
+        hbox = QtWidgets.QHBoxLayout()
+        widget.setLayout(hbox)
+        hbox.addWidget(self.start_button)
+        hbox.addWidget(self.terminate_button)
+        layout.addWidget(widget)
         layout.addWidget(self.signal_monitor_widget)
 
         # Make layout 0 1
@@ -274,15 +356,24 @@ class MyWidget(QtWidgets.QMainWindow):
         self.device_reader = reader
 
     @QtCore.Slot()
+    def terminate(self):
+        self.block_manager = BlockManager()
+        self.start_button.setDisabled(False)
+        LOGGER.debug(
+            'Terminated block designed experiment, and the start_button disable status is released.')
+
+    @QtCore.Slot()
     def magic(self):
         self.text.setText(random.choice(self.hello))
 
-        self.button.setDisabled(True)
+        self.start_button.setDisabled(True)
+        self.terminate_button.setDisabled(False)
 
         self.block_manager = BlockManager(self.experiment_inputs['_buffer'])
 
         if len(self.block_manager.design) == 0:
-            self.button.setDisabled(False)
+            self.start_button.setDisabled(False)
+            self.terminate_button.setDisabled(True)
             LOGGER.warning(
                 'Tried to start the block designed experiment, but no design was found.')
             return
@@ -304,7 +395,8 @@ class MyWidget(QtWidgets.QMainWindow):
             line2_width=QtWidgets.QSpinBox(),
             line3_color=QtWidgets.QPushButton('    '),
             line3_width=QtWidgets.QSpinBox(),
-            line3_ref_value=QtWidgets.QDial()
+            line3_ref_value=QtWidgets.QDial(),
+            display_mode=QtWidgets.QComboBox()
         )
 
         def pen2hex(pen):
@@ -320,7 +412,13 @@ class MyWidget(QtWidgets.QMainWindow):
         groupbox.setLayout(vbox)
 
         # --------------------------------------------------------------------------------
-        zone1 = QtWidgets.QGroupBox('Curve (current)')
+        inputs['display_mode'].addItems(self.display_modes)
+        inputs['display_mode'].setCurrentText(self.display_mode)
+
+        vbox.addWidget(inputs['display_mode'])
+
+        # --------------------------------------------------------------------------------
+        zone1 = QtWidgets.QGroupBox('Curve (realtime)')
         vbox.addWidget(zone1)
         vbox1 = QtWidgets.QVBoxLayout()
         zone1.setLayout(vbox1)
@@ -334,7 +432,7 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['line1_width'].setMaximum(10)
 
         # --------------------------------------------------------------------------------
-        zone2 = QtWidgets.QGroupBox(f'Curve (delay {self.delay_seconds} sec)')
+        zone2 = QtWidgets.QGroupBox(f'Delay ({self.delay_seconds} sec)')
         vbox.addWidget(zone2)
         vbox2 = QtWidgets.QVBoxLayout()
         zone2.setLayout(vbox2)
@@ -348,7 +446,7 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['line2_width'].setMaximum(10)
 
         # --------------------------------------------------------------------------------
-        zone3 = QtWidgets.QGroupBox('Reference')
+        zone3 = QtWidgets.QGroupBox('Ref. value')
         zone3.setCheckable(True)
         vbox.addWidget(zone3)
         vbox3 = QtWidgets.QVBoxLayout()
@@ -372,6 +470,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         def _change_ref_value(v):
             self.ref_value = v
+            self.signal_monitor_widget.ellipse4_size_changed(v)
             label.setText(f'Ref value = {v}')
 
         inputs['line3_ref_value'].valueChanged.connect(_change_ref_value)
@@ -459,6 +558,23 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['line3_color'].clicked.connect(_change_color3)
         inputs['line3_width'].valueChanged.connect(_change_width3)
 
+        # --------------------------------------------------------------------------------
+        def _change_display_mode(mode):
+            self.display_mode = mode
+
+            if mode == 'Realtime':
+                zone1.setVisible(True)
+                zone2.setVisible(False)
+                zone3.setVisible(True)
+
+            if mode == 'Delayed':
+                zone1.setVisible(True)
+                zone2.setVisible(True)
+                zone3.setVisible(True)
+
+        inputs['display_mode'].currentTextChanged.connect(_change_display_mode)
+        _change_display_mode(self.display_mode)
+
         return inputs
 
     def experiment_stuff(self, layout):
@@ -493,13 +609,9 @@ class MyWidget(QtWidgets.QMainWindow):
 
         def _change_protocol():
             protocol = inputs['predefined'].currentText()
-
             k = protocol.split(' | ')[0]
-
             _clear()
-
             inputs['_buffer'] = self.my_protocol.get_buffer(k)
-
             _update_summary()
 
         inputs['predefined'].currentTextChanged.connect(_change_protocol)
@@ -688,56 +800,107 @@ class MyWidget(QtWidgets.QMainWindow):
 
         LOGGER.debug(f'Saved data into {folder}')
 
-        self.button.setDisabled(False)
+        self.start_button.setDisabled(False)
 
         self.device_reader.start()
 
-    def update_graph(self, pairs=None, pairs_delay=None):
+    def update_status(self, pairs):
+        if pairs is None:
+            return
 
-        if pairs is not None:
+        if len(pairs) == 0:
+            return
+
+        t0 = pairs[0][-1]
+        t1 = pairs[-1][-1]
+
+        n = len(pairs)-1
+        # r = int(n/(t1 - t0)+0.5)
+        r = n/max(t1 - t0, 1e-4)
+        self.signal_monitor_widget.status_text.setText(
+            f'{r:.2f} Hz')
+
+        block = self.block_manager.consume(t1)
+
+        if block == 'Consumed all the blocks.':
+            self.signal_monitor_widget.block_text.setText(
+                'Finished')
+            LOGGER.debug('Block design is completed.')
+            self.save_data()
+            return
+
+        if block == 'No block at all.':
+            self.signal_monitor_widget.block_text.setText(
+                f'Idle {pairs[-1][0]:.2f}')
+            return t0, t1, ''
+
+        if isinstance(block, dict):
+            block_name = block['name']
+            stop = block['stop']
+            total = block['total']
+
+            txt = f'{block_name} | {stop-t1:.0f} | {total-t1:.0f}'
+
+            self.signal_monitor_widget.block_text.setText(txt)
+
+        return t0, t1, block_name
+
+    def update_line1(self, pairs, t0, t1, block_name, expand_t=0):
+        self.signal_monitor_widget.setXRange(
+            t0, max(t1, self.window_length_seconds) + expand_t, padding=0)
+
+        if block_name == 'Empty':
+            self.signal_monitor_widget.update1([])
+            self.signal_monitor_widget.update3(0, 0, 0, False)
+        else:
             self.signal_monitor_widget.update1(pairs)
+            self.signal_monitor_widget.update3(
+                t0,
+                max(t1, self.window_length_seconds) + expand_t,
+                self.ref_value,
+                self.display_ref_flag)
 
-            if len(pairs) > 0:
-                t0 = pairs[0][-1]
-                t1 = pairs[-1][-1]
+        return block_name
 
-                self.signal_monitor_widget.update3(
-                    t0, t1, self.ref_value, self.display_ref_flag)
+    def update_line2(self, pairs_delay):
+        if pairs_delay is None:
+            return
 
-                block = self.block_manager.consume(t1)
+        self.signal_monitor_widget.update2(pairs_delay)
 
-                if block == 'Consumed all the blocks.':
-                    self.signal_monitor_widget.block_text.setText('Finished')
-                    LOGGER.debug('Block design is completed.')
-                    self.save_data()
+    def update_graph(self, pairs=None, pairs_delay=None):
+        current = self.update_status(pairs)
 
-                if block == 'No block at all.':
-                    self.signal_monitor_widget.block_text.setText('Idle')
-                    pass
+        if current is None:
+            return
 
-                if isinstance(block, dict):
-                    name = block['name']
-                    stop = block['stop']
-                    total = block['total']
+        t0, t1, block_name = current
 
-                    txt = f'{name} | {stop-t1:.0f} | {total-t1:.0f}'
+        if self.display_mode == 'Delayed':
+            self.update_line1(pairs, t0, t1, block_name)
 
-                    self.signal_monitor_widget.block_text.setText(txt)
+            if block_name == 'Empty':
+                self.update_line2([])
+            else:
+                self.update_line2(pairs_delay)
 
-                self.signal_monitor_widget.setXRange(
-                    t0, max(t1, self.window_length_seconds), padding=0)
+        if self.display_mode == 'Realtime':
+            self.update_line1(pairs, t0, t1, block_name,
+                              expand_t=self.window_length_seconds)
+            self.update_line2([])
 
-                if len(pairs) > 1:
-                    n = len(pairs)-1
-                    # r = int(n/(t1 - t0)+0.5)
-                    r = n/(t1 - t0)
-                    self.signal_monitor_widget.status_text.setText(
-                        f'{r:.2f} Hz')
+        if self.display_mode == 'Circle fit':
+            self.signal_monitor_widget.setXRange(self.signal_monitor_widget.min_value,
+                                                 self.signal_monitor_widget.max_value)
 
-        if pairs_delay is not None:
-            self.signal_monitor_widget.update2(pairs_delay)
+            self.update_line2([])
 
-        pass
+            if pairs is not None:
+                if len(pairs) > 0:
+                    self.signal_monitor_widget.ellipse5_size_changed(
+                        pairs[-1][0])
+
+        return
 
 
 # %% ---- 2023-09-17 ------------------------
