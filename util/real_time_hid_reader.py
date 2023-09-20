@@ -63,6 +63,12 @@ class TargetDevice(object):
         pass
 
     def detect_product(self):
+        """Detect the product string of the target device
+
+        Returns:
+            device: The device I want;
+            device_info (dict): The device info.
+        """
         try:
             hid_devices = hid.enumerate()
             device_info = [e for e in hid_devices
@@ -103,15 +109,18 @@ class RealTimeHidReader(object):
 
     running = False
 
-    def __init__(self, device):
+    def __init__(self, device: TargetDevice):
         self.device = device
         self.ts = 1 / self.sample_rate  # milliseconds
 
         LOGGER.debug(
             f'Initialized device: {self.device} with {self.sample_rate} | {self.ts}')
 
-    def stop(self):
-        """Stop the getting loop.
+    def stop(self) -> list:
+        """Stop the collecting loop.
+
+        Returns:
+            list: All the data collected.
         """
         self.running = False
 
@@ -124,18 +133,30 @@ class RealTimeHidReader(object):
         return self.buffer.copy()
 
     def start(self):
-        """Start the getting loop.
+        """
+        Start the getting loop in a thread.
         """
         t = threading.Thread(target=self._reading, args=(), daemon=True)
         t.start()
 
         LOGGER.debug('Started the HID device reading loop')
 
-    def number2pressure(self, value):
+    def number2pressure(self, value: int) -> float:
+        """
+        Convert the value to the pressure value.
+
+        Args:
+            value (int): The input value.
+
+        Returns:
+            float: The converted pressure value. 
+        """
         return (value - self.g0) / (self.g200 - self.g0) * 200.0
 
     def _reading(self):
-        """Private method of the getting loop.
+        """
+        Private method of the getting loop.
+        It is an infinity loop until self.stop() or self.running is False.
         """
         self.running = True
 
@@ -191,7 +212,7 @@ class RealTimeHidReader(object):
 
         return
 
-    def peek(self, n, peek_delay=False):
+    def peek(self, n: int, peek_delay=False) -> list:
         """Peek the latest n-points data
 
         Args:
@@ -199,8 +220,8 @@ class RealTimeHidReader(object):
             peek_delay (boolean): Whether peek the buffer_delay.
 
         Returns:
-            array: The got data, [(value, t), ...], value is the data value, t is the timestamp.
-                   If peek_delay, the buffer_delay is used, [(mean, std, max, min, timestamp), ...] is is the format.
+            list: The got data, [(value, t), ...], value is the data value, t is the timestamp.
+                  If peek_delay, the buffer_delay is used, [(mean, std, max, min, timestamp), ...] is is the format.
         """
         if peek_delay:
             return self.buffer_delay[-n:]

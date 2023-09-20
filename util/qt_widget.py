@@ -33,6 +33,7 @@ from PySide6.QtGui import QFont
 
 from . import LOGGER, CONF, root
 from .load_protocols import MyProtocol
+from .real_time_hid_reader import RealTimeHidReader
 
 from rich import inspect
 
@@ -41,6 +42,10 @@ from rich import inspect
 
 
 class SignalMonitorWidget(pg.PlotWidget):
+    """
+    The pyqtgraph widget for high speed display
+    """
+
     pg.setConfigOption('background', 'w')
     pg.setConfigOption('foreground', 'k')
     pg.setConfigOption('antialias', True)
@@ -54,17 +59,27 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         self.set_config()
 
-        self.draw()
+        self.place_components()
 
         LOGGER.debug(f'Initialized {self.__class__}')
 
     def set_config(self):
+        """
+        Init setup configures
+        """
         self.setTitle(self.title)
         self.showGrid(x=True, y=True, alpha=0.5)
         self.disableAutoRange()
         self.setYRange(self.min_value, self.max_value)
 
-    def ellipse4_size_changed(self, ref_value):
+    def ellipse4_size_changed(self, ref_value: float):
+        """
+        Callback for the size of ellipse4,
+        the ellipse4 is the reference circle to be fitted.
+
+        Args:
+            ref_value (float): The reference value.
+        """
         cx = (self.max_value + self.min_value) / 2
         cy = (self.max_value + self.min_value) / 2
         w = ref_value
@@ -76,7 +91,14 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         self.ellipse4.setRect(x, y, w, h)
 
-    def ellipse5_size_changed(self, value):
+    def ellipse5_size_changed(self, value: float):
+        """
+        Callback for the size changing of ellipse5,
+        the ellipse5 is the morphing circle controlled by the pressure.
+
+        Args:
+            value (float): The value of the input pressure.
+        """
         cx = (self.max_value + self.min_value) / 2
         cy = (self.max_value + self.min_value) / 2
 
@@ -95,28 +117,31 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         self.ellipse5.setRect(x, y, w, h)
 
-    def draw(self):
+    def place_components(self):
+        """
+        Place the display components on the figure.
+        """
         # --------------------------------------------------------------------------------
-        self.pen1 = self.mkPen(color='blue')
+        self.pen1 = pg.mkPen(color='blue')
         self.curve1 = self.plot([], [], pen=self.pen1)
 
         # --------------------------------------------------------------------------------
-        self.pen2 = self.mkPen(color='red')
+        self.pen2 = pg.mkPen(color='red')
         self.curve2 = self.plot([], [], pen=self.pen2)
 
         # --------------------------------------------------------------------------------
-        self.pen3 = self.mkPen(color='green')
+        self.pen3 = pg.mkPen(color='green')
         self.curve3 = self.plot([], [], pen=self.pen3)
 
         # --------------------------------------------------------------------------------
-        self.pen4 = self.mkPen(color='red', width=5)
+        self.pen4 = pg.mkPen(color='red', width=5)
         self.ellipse4 = QtWidgets.QGraphicsEllipseItem(
             1000-250, 1000-250, 500, 500)
         self.ellipse4.setPen(self.pen4)
         self.addItem(self.ellipse4)
 
         # --------------------------------------------------------------------------------
-        self.pen5 = self.mkPen(color='black', width=3)
+        self.pen5 = pg.mkPen(color='black', width=3)
         self.ellipse5 = QtWidgets.QGraphicsEllipseItem(
             1000-250, 1000-250, 500, 500)
         self.ellipse5.setPen(self.pen5)
@@ -153,34 +178,62 @@ class SignalMonitorWidget(pg.PlotWidget):
         LOGGER.debug(
             f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
 
-    def update1(self, pairs):
+    def update_curve1(self, pairs):
+        """
+        Update the curve1 with the given pairs,
+        the curve1 is the realtime pressure curve.
+
+        Args:
+            pairs (list): The array of realtime pressure curve,
+                          the element is like (value,..., timestamp)
+        """
         ys = [e[0] for e in pairs]
         ts = [e[-1] for e in pairs]
         self.curve1.setData(ts, ys)
 
-    def update2(self, pairs_delay):
+    def update_curve2(self, pairs_delay):
+        """
+        Update the curve1 with the given pairs,
+        the curve2 is the delayed pressure curve.
+
+        Args:
+            pairs_delay (list): The array of delayed pressure curve,
+                                the element is like (value,..., timestamp)
+        """
         ys = [e[0] for e in pairs_delay]
         ts = [e[-1] for e in pairs_delay]
         self.curve2.setData(ts, ys)
 
-    def update3(self, t0, t1, ref_value, flag):
+    def update_curve3(self, t0: float, t1: float, ref_value: float, flag: bool):
+        """
+        Update the curve3 with the ref_value,
+        the curve3 is the horizontal line with the reference pressure value
+
+        Args:
+            t0 (float): The start timestamp;
+            t1 (float): The stop timestamp;
+            ref_value (float): The reference pressure;
+            flag (bool): Whether to draw the straight line or draw nothing.
+        """
         if flag:
             self.curve3.setData([t0, t1], [ref_value, ref_value])
         else:
             self.curve3.setData([], [])
 
-    def mkPen(self, **kwargs):
-        return pg.mkPen(**kwargs)
-
 
 class BlockManager(object):
+    """
+    The block manager
+    @parse_blocks(blocks) is the built-in method to startup from the input blocks;
+    @consume(t) is the method determine the current block and pop it if it is exceeded.
+    """
     design = []
 
     def __init__(self, blocks=[]):
         self.design = self.parse_blocks(blocks)
         LOGGER.debug(f'Initialized {self.__class__}')
 
-    def parse_blocks(self, blocks):
+    def parse_blocks(self, blocks: list):
         """Parse the input block design
 
         Args:
@@ -225,7 +278,7 @@ class BlockManager(object):
 
         return design
 
-    def consume(self, t):
+    def consume(self, t: float):
         """Consume the block if necessary
 
         ** Consumed all the blocks ** is a very special output,
@@ -352,11 +405,19 @@ class MyWidget(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(self.widget_0_3)
         self.display_inputs = self.display_stuff(layout)
 
-    def link_reader(self, reader):
+    def link_reader(self, reader: RealTimeHidReader):
+        """
+        Link to the hid device reader.
+
+        Args:
+            reader (_type_): _description_
+        """
         self.device_reader = reader
 
     @QtCore.Slot()
     def terminate(self):
+        """Terminate the current block design experiment.
+        """
         self.block_manager = BlockManager()
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
@@ -365,6 +426,11 @@ class MyWidget(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def magic(self):
+        """
+        Start the block design experiment form the current setup.
+
+        It also restarts the self.device_reader.
+        """
         self.text.setText(random.choice(self.hello))
 
         self.start_button.setDisabled(True)
@@ -379,6 +445,7 @@ class MyWidget(QtWidgets.QMainWindow):
                 'Tried to start the block designed experiment, but no design was found.')
             return
 
+        # Snapshot the current setup.
         self.setup_snapshot = dict(
             subject_info=self.subject_inputs['_summary'].toPlainText(),
             experiment_info=self.experiment_inputs['_buffer']
@@ -388,7 +455,45 @@ class MyWidget(QtWidgets.QMainWindow):
         # time.sleep(1)
         self.device_reader.start()
 
-    def display_stuff(self, layout):
+    def save_data(self):
+        """
+        Save the data and the snapshot setup for the block design experiment.
+
+        It also restarts the self.device_reader.
+        """
+        data = self.device_reader.stop()
+
+        subject_info = self.setup_snapshot['subject_info']
+        experiment_info = self.setup_snapshot['experiment_info']
+
+        folder = self.data_folder_path.joinpath(
+            '{}'.format(datetime.strftime(datetime.now(), '%Y-%m-%d-%H-%M-%S')))
+
+        folder.mkdir(exist_ok=True, parents=True)
+
+        json.dump(data, open(folder.joinpath('data.json'), 'w'))
+        json.dump(subject_info, open(folder.joinpath('subject.json'), 'w'))
+        json.dump(experiment_info, open(
+            folder.joinpath('experiment.json'), 'w'))
+
+        LOGGER.debug(f'Saved data into {folder}')
+
+        self.start_button.setDisabled(False)
+        self.terminate_button.setDisabled(True)
+
+        self.device_reader.start()
+
+    def display_stuff(self, layout: QtWidgets.QVBoxLayout) -> dict:
+        """
+        Place the display stuff components to the widget,
+        with the given layout.
+
+        Args:
+            layout (QtWidgets.QVBoxLayout): The input layout
+
+        Returns:
+            dict: The necessary widgets of inputs
+        """
         inputs = dict(
             line1_color=QtWidgets.QPushButton('    '),
             line1_width=QtWidgets.QSpinBox(),
@@ -579,7 +684,17 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return inputs
 
-    def experiment_stuff(self, layout):
+    def experiment_stuff(self, layout: QtWidgets.QVBoxLayout) -> dict:
+        """
+        Place the experiment stuff components to the widget,
+        with the given layout.
+
+        Args:
+            layout (QtWidgets.QVBoxLayout): The input layout
+
+        Returns:
+            dict: The necessary widgets of inputs
+        """
         inputs = dict(
             predefined=QtWidgets.QComboBox(),
             seconds=QtWidgets.QSpinBox(),
@@ -717,7 +832,17 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return inputs
 
-    def subject_stuff(self, layout):
+    def subject_stuff(self, layout: QtWidgets.QVBoxLayout) -> dict:
+        """
+        Place the subject stuff components to the widget,
+        with the given layout.
+
+        Args:
+            layout (QtWidgets.QVBoxLayout): The input layout
+
+        Returns:
+            dict: The necessary widgets of inputs
+        """
         inputs = dict(
             date=QtWidgets.QDateTimeEdit(),
             subject=QtWidgets.QLineEdit(),
@@ -785,29 +910,20 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return inputs
 
-    def save_data(self):
-        data = self.device_reader.stop()
-        subject_info = self.setup_snapshot['subject_info']
-        experiment_info = self.setup_snapshot['experiment_info']
+    def update_signal_experiment_status(self, pairs: list):
+        """
+        Update the status for the signal collecting and experiment block.
 
-        folder = self.data_folder_path.joinpath(
-            '{}'.format(datetime.strftime(datetime.now(), '%Y-%m-%d-%H-%M-%S')))
+        Args:
+            pairs (list): The incoming new data.
 
-        folder.mkdir(exist_ok=True, parents=True)
-
-        json.dump(data, open(folder.joinpath('data.json'), 'w'))
-        json.dump(subject_info, open(folder.joinpath('subject.json'), 'w'))
-        json.dump(experiment_info, open(
-            folder.joinpath('experiment.json'), 'w'))
-
-        LOGGER.debug(f'Saved data into {folder}')
-
-        self.start_button.setDisabled(False)
-        self.terminate_button.setDisabled(True)
-
-        self.device_reader.start()
-
-    def update_status(self, pairs):
+        Returns:
+            None: None refers the pairs is invalid;
+            (t0, t1, block_name):
+            t0: The start time of the new data;
+            t1: The end time of the new data;
+            block_name: The current block name, empty string for not important block name.
+        """
         if pairs is None:
             return
 
@@ -848,30 +964,47 @@ class MyWidget(QtWidgets.QMainWindow):
 
         return t0, t1, block_name
 
-    def update_curve13(self, pairs, t0, t1, block_name, expand_t=0):
+    def update_curve13(self, pairs: list, t0: float, t1: float, block_name: str, expand_t: float = 0):
+        """
+        Update the curve1 (the realtime curve) and curve3 (the reference line) in the signal displaying widget (the pyqtgraph figure)
+
+        Args:
+            pairs (list): The incoming new data;
+            t0 (float): The start time of the new data;
+            t1 (float): The end time of the new data;
+            block_name (str): The block_name, it controls how the curve1 and curve3 is drawn;
+            expand_t (float, optional): How many seconds the end time is expanded to the xRange. Defaults to 0.
+        """
         self.signal_monitor_widget.setXRange(
             t0, max(t1, self.window_length_seconds) + expand_t, padding=0)
 
         if block_name == 'Empty':
-            self.signal_monitor_widget.update1([])
-            self.signal_monitor_widget.update3(0, 0, 0, False)
+            self.signal_monitor_widget.update_curve1([])
+            self.signal_monitor_widget.update_curve3(0, 0, 0, False)
         else:
-            self.signal_monitor_widget.update1(pairs)
-            self.signal_monitor_widget.update3(
+            self.signal_monitor_widget.update_curve1(pairs)
+            self.signal_monitor_widget.update_curve3(
                 t0,
                 max(t1, self.window_length_seconds) + expand_t,
                 self.ref_value,
                 self.display_ref_flag)
 
-        return block_name
+    def update_curve2(self, pairs_delay: list):
+        """
+        Update the curve2 (the delayed curve)
 
-    def update_curve2(self, pairs_delay):
+        Args:
+            pairs_delay (list): The delayed mean value of the incoming new data.
+        """
         if pairs_delay is None:
             return
 
-        self.signal_monitor_widget.update2(pairs_delay)
+        self.signal_monitor_widget.update_curve2(pairs_delay)
 
     def toggle_displays(self):
+        """
+        Setup visible value for the curves according to the current self.display_mode
+        """
         if self.display_mode == 'Delayed':
             self.signal_monitor_widget.curve1.setVisible(True)
             self.signal_monitor_widget.curve2.setVisible(True)
@@ -895,8 +1028,15 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.ellipse4.setVisible(True)
             self.signal_monitor_widget.ellipse5.setVisible(True)
 
-    def update_graph(self, pairs=None, pairs_delay=None):
-        current_block = self.update_status(pairs)
+    def update_graph(self, pairs:list=None, pairs_delay:list=None):
+        """
+        Update the graph as the very fast loop
+
+        Args:
+            pairs (list, optional): The incoming data from the hid device. Defaults to None.
+            pairs_delay (list, optional): The delayed mean of the incoming data from th hid device. Defaults to None.
+        """        
+        current_block = self.update_signal_experiment_status(pairs)
 
         if current_block is None:
             return
