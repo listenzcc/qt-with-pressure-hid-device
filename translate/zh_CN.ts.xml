@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.0" language="es">
+  <context>
+    <name>default</name>
+
+    <message>
+      <source>Start</source>
+      <translation type="">实验开始</translation>
+    </message>
+
+    <message>
+      <source>Terminate</source>
+      <translation type="">实验中止</translation>
+    </message>
+
+    <message>
+      <source>Pressure feedback system by Dr. Zhang</source>
+      <translation type="">压感反馈系统</translation>
+    </message>
+
+  </context>
+
+  <context>
+    <name>display setup session</name>
+
+    <message>
+      <source>Ref. value</source>
+      <translation type="">参考值</translation>
+    </message>
+
+    <message>
+      <source>Display setup</source>
+      <translation type="">显示设置</translation>
+    </message>
+
+    <message>
+      <source>Delay</source>
+      <translation type="">延迟</translation>
+    </message>
+
+    <message>
+      <source>Delay (seconds)</source>
+      <translation type="">延迟（秒）</translation>
+    </message>
+
+    <message>
+      <source>Curve (realtime)</source>
+      <translation type="">曲线 （实时）</translation>
+    </message>
+
+    <message>
+      <source>Curve (delay)</source>
+      <translation type="">曲线 （延迟）</translation>
+    </message>
+
+    <message>
+      <source>Color</source>
+      <translation type="">颜色</translation>
+    </message>
+
+    <message>
+      <source>Width</source>
+      <translation type="">宽度</translation>
+    </message>
+
+    <message>
+      <source>Correction</source>
+      <translation type="">校正</translation>
+    </message>
+
+    <message>
+      <source>Correction 0g</source>
+      <translation type="">校正 0 克</translation>
+    </message>
+
+    <message>
+      <source>Correction 200g</source>
+      <translation type="">校正 200 克</translation>
+    </message>
+
+  </context>
+
+  <context>
+    <name>experiment setup session</name>
+
+    <message>
+      <source>Real</source>
+      <translation type="">真反馈</translation>
+    </message>
+
+    <message>
+      <source>Fake</source>
+      <translation type="">伪反馈</translation>
+    </message>
+
+    <message>
+      <source>Empty</source>
+      <translation type="">空屏</translation>
+    </message>
+
+    <message>
+      <source>Repeat</source>
+      <translation type="">以上内容重复一次</translation>
+    </message>
+
+    <message>
+      <source>Clear</source>
+      <translation type="">清除以上内容</translation>
+    </message>
+
+    <message>
+      <source>Refresh</source>
+      <translation type="">刷新实验设计</translation>
+    </message>
+
+    <message>
+      <source>Save</source>
+      <translation type="">存储当前实验设计</translation>
+    </message>
+
+    <message>
+      <source>Experiment setup</source>
+      <translation type="">实验设计</translation>
+    </message>
+
+    <message>
+      <source>Predefined protocols</source>
+      <translation type="">预定义的实验设计</translation>
+    </message>
+
+    <message>
+      <source>Block length (seconds)</source>
+      <translation type="">组块时长（秒）</translation>
+    </message>
+
+    <message>
+      <source>Summary</source>
+      <translation type="">实验设计汇总</translation>
+    </message>
+
+  </context>
+
+  <context>
+    <name>subject setup session</name>
+
+    <message>
+      <source>Subject setup</source>
+      <translation type="">被试信息设置</translation>
+    </message>
+
+    <message>
+      <source>Experiment date</source>
+      <translation type="">实验日期</translation>
+    </message>
+
+    <message>
+      <source>Subject name</source>
+      <translation type="">被试姓名</translation>
+    </message>
+
+    <message>
+      <source>Subject gender</source>
+      <translation type="">被试性别</translation>
+    </message>
+
+    <message>
+      <source>Subject age</source>
+      <translation type="">被试年龄</translation>
+    </message>
+
+    <message>
+      <source>male</source>
+      <translation type="">男</translation>
+    </message>
+
+    <message>
+      <source>female</source>
+      <translation type="">女</translation>
+    </message>
+
+    <message>
+      <source>Summary</source>
+      <translation type="">被试信息汇总</translation>
+    </message>
+
+  </context>
+
+</TS>

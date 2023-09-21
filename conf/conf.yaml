@@ -8,6 +8,6 @@ display:
 device:
   sample_rate: 125
   product_string: HIDtoUART example
-  g0: 44000
-  g200: 46000
+  g0: 44064
+  g200: 46122
 

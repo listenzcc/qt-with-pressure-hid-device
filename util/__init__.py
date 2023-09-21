@@ -46,8 +46,8 @@ setup = dict(
     device=dict(
         sample_rate=125,  # Hz
         product_string='HIDtoUART example',  # name
-        g0=44000,
-        g200=46000
+        g0=int(open(root.joinpath('correction/g0')).read()),  # 44000,
+        g200=int(open(root.joinpath('correction/g200')).read())  # 46000,
     )
 )
 

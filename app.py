@@ -22,7 +22,7 @@ import sys
 import time
 import threading
 
-from util import LOGGER, CONF
+from util import LOGGER, CONF, root
 from util.real_time_hid_reader import TargetDevice, RealTimeHidReader
 from util.qt_widget import QtWidgets, MyWidget, QtCore
 
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     target_device = TargetDevice()
 
     real_time_hid_reader = RealTimeHidReader(device=target_device.device)
-    real_time_hid_reader.start()
+    # real_time_hid_reader.start()
 
     # time.sleep(10)
     # real_time_hid_reader.stop()
@@ -51,23 +51,34 @@ if __name__ == '__main__':
 
     app = QtWidgets.QApplication([])
 
+    translator = QtCore.QTranslator(app)
+
+    lang = 'zh_CN'
+    # lang = 'en_US'
+    path = root.joinpath(f'translate/{lang}')
+    if translator.load(path.as_posix()):
+        app.installTranslator(translator)
+        LOGGER.debug(f'Translator is loaded: {lang}: {path}')
+    else:
+        LOGGER.error(f'Failed to load translator: {lang}: {path}')
+
     widget = MyWidget()
     widget.link_reader(real_time_hid_reader)
     # widget.resize(800, 600)
     widget.show()
 
-    n = int(widget.window_length_seconds * real_time_hid_reader.sample_rate)
-    nd = int(real_time_hid_reader.sample_rate *
-             (widget.window_length_seconds - real_time_hid_reader.delay_seconds))
+    # n = int(widget.window_length_seconds * real_time_hid_reader.sample_rate)
+    # nd = int(real_time_hid_reader.sample_rate *
+    #          (widget.window_length_seconds - real_time_hid_reader.delay_seconds))
 
-    def update():
-        pairs = real_time_hid_reader.peek(n)
-        pairs_delay = real_time_hid_reader.peek(nd, peek_delay=True)
-        widget.update_graph(pairs, pairs_delay)
+    # def update():
+    #     pairs = real_time_hid_reader.peek(n)
+    #     pairs_delay = real_time_hid_reader.peek(nd, peek_delay=True)
+    #     widget.update_graph(pairs, pairs_delay)
 
-    timer = QtCore.QTimer()
-    timer.timeout.connect(update)
-    timer.start()
+    # timer = QtCore.QTimer()
+    # timer.timeout.connect(update)
+    # timer.start()
 
     def exec():
         callback = app.exec()
