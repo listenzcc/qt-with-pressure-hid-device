@@ -87,6 +87,33 @@ class TargetDevice(object):
         return device, device_info
 
 
+class FakePressure(object):
+    def __init__(self, data=None):
+        self.load(data)
+        LOGGER.debug(
+            f'Initialized {self.__class__} with {self.n} time points, the first is {self.buffer[0]}')
+
+    def load(self, data):
+        if data is None:
+            data = [
+                (100, 45000, -1, -1, -1),
+                (200, 46000, -1, -1, -1),
+            ]
+            LOGGER.warning(
+                'Load FakePressure with invalid data, using default instead.')
+
+        self.buffer = data
+        self.i = 0
+        self.n = len(data)
+
+    def get(self):
+        d = self.buffer[self.i]
+        self.i += 1
+        if not self.i < self.n:
+            self.i = 0
+        return d
+
+
 class RealTimeHidReader(object):
     """The hid reader for real time getting the figure pressure value.
 
@@ -106,6 +133,10 @@ class RealTimeHidReader(object):
 
     g0 = CONF['device']['g0']
     g200 = CONF['device']['g200']
+
+    use_simplex_noise_flag = False
+
+    pseudo_data = None
 
     running = False
 
@@ -132,10 +163,13 @@ class RealTimeHidReader(object):
 
         return self.buffer.copy()
 
-    def start(self):
+    def start(self, pseudo_data=None):
         """
         Start the getting loop in a thread.
         """
+        self.pseudo_data = pseudo_data
+        self.fake_pressure = FakePressure(self.pseudo_data)
+
         t = threading.Thread(target=self._reading, args=(), daemon=True)
         t.start()
 
@@ -180,16 +214,27 @@ class RealTimeHidReader(object):
                 time.sleep(0.001)
             else:
                 if valid_device_flag:
+                    # Read real time pressure value and convert it
                     bytes16 = device.read(16, timeout=100)
                     raw_value = digit2int(bytes16)
+                    value = self.number2pressure(raw_value)
                 else:
-                    raw_value = (opensimplex.noise2(
-                        x=10, y=t * 0.2) + 1) * 10000 + 44000
-                    # x = random.randint(40000, 60000)
+                    if self.use_simplex_noise_flag:
+                        # Debug usage when device is known to be invalid,
+                        # use the opensimplex noise instead of real pressure
+                        raw_value = (opensimplex.noise2(
+                            x=10, y=t * 0.2) + 1) * 10000 + 44000
+                        value = self.number2pressure(raw_value)
+                    else:
+                        # Double -1 refers the device is invalid
+                        raw_value = -1
+                        value = -1
 
-                value = self.number2pressure(raw_value)
+                # The 1st and 2nd elements are used as the fake pressure value
+                fake = self.fake_pressure.get()
 
-                self.buffer.append((value, raw_value, t-t0))
+                # The data is (pressure_value, digital_value, fake_pressure_value, fake_digital_value,seconds passed from the start)
+                self.buffer.append((value, raw_value, fake[0], fake[1], t-t0))
                 self.n += 1
 
                 if self.n > delay_pnts:

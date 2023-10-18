@@ -27,7 +27,7 @@ from datetime import datetime
 
 from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QFont
-from PySide6.QtCore import QTranslator, QCoreApplication
+from PySide6.QtCore import QCoreApplication
 
 from . import LOGGER, CONF, root
 from .load_protocols import MyProtocol
@@ -106,12 +106,26 @@ class SignalMonitorWidget(pg.PlotWidget):
 
     def ellipse5_size_changed(self, value: float):
         """
-        Callback for the size changing of ellipse5,
-        the ellipse5 is the morphing circle controlled by the pressure.
+        Updates the size and position of `ellipse5` based on the provided value.
+
+        This method calculates the new size and position of `ellipse5` based on the given value.
+        It uses the `ref_value` and `min_value` attributes to determine the scaling factor and adjusts the width and height accordingly.
+        The resulting rectangle is then set as the new rectangle for `ellipse5`.
 
         Args:
-            value (float): The value of the input pressure.
+            self: The object instance.
+            value (float): The value used to calculate the size and position of `ellipse5`.
+
+        Returns:
+            None
+
+        Example:
+            ```python
+            widget = WidgetClass()
+            widget.ellipse5_size_changed(0.5)
+            ```
         """
+
         cx = (self.max_value + self.min_value) / 2
         cy = (self.max_value + self.min_value) / 2
 
@@ -132,8 +146,27 @@ class SignalMonitorWidget(pg.PlotWidget):
 
     def place_components(self):
         """
-        Place the display components on the figure.
+        Places components on the widget for drawing.
+
+        This method initializes and sets up various components for drawing on the widget.
+        It creates and configures multiple curves, ellipses, and text items.
+        The curves are associated with different pens, and the ellipses are positioned and styled with specific pens.
+        The text items are set with custom fonts, positions, and parent items.
+        The method also sets the z-order of the components and logs a debug message.
+
+        Args:
+            self: The object instance.
+
+        Returns:
+            None
+
+        Example:
+            ```python
+            widget = WidgetClass()
+            widget.place_components()
+            ```
         """
+
         # --------------------------------------------------------------------------------
         self.pen1 = pg.mkPen(color='blue')
         self.curve1 = self.plot([], [], pen=self.pen1)
@@ -292,20 +325,30 @@ class BlockManager(object):
         return design
 
     def consume(self, t: float):
-        """Consume the block if necessary
+        """
+        Consumes a block based on the provided time.
+
+        This method consumes a block from the `design` list based on the given time.
+        If the `design` list is empty, it returns 'No block at all.'
+        If the provided time is greater than the stop time of the first block in the `design` list, that block is removed from the list and a debug message is logged.
+        If the `design` list becomes empty after consuming a block, it returns 'Consumed all the blocks.'
+        Otherwise, it returns the first block in the `design` list.
 
         ** Consumed all the blocks ** is a very special output,
         it refers the blocks end, and it is a once for all output, never repeated.
 
         Args:
-            t (float): The time from blocks beginning.
+            self: The object instance.
+            t (float): The time used to determine which block to consume.
 
         Returns:
-            str or dict: dict refers the dict,
-                         str refers the blocks are empty,
-                        * No block at all: The block design is empty, it refers nothing is running and abnormal;
-                        * Consumed all the blocks: The block design is currently finished, it refers the experiment closes correctly,
-                          it calls for experiment stopping workload, like saving data or something like that.
+            str or dict: The consumed block or a message indicating the status of the blocks.
+
+        Example:
+            ```python
+            obj = ClassName()
+            result = obj.consume(0.5)
+            ```
         """
 
         if len(self.design) == 0:
@@ -352,12 +395,19 @@ class MyWidget(QtWidgets.QMainWindow):
     device_reader = None
     timer = None
     block_manager = BlockManager()
+    fake_blocks = []
     my_protocol = MyProtocol()
     data_folder_path = root.joinpath('Data')
 
-    def __init__(self):
+    def __init__(self, app, translator=None):
         # super(MyWidget, self).__init__()
         super().__init__()
+
+        self.app = app
+
+        # ! There is no need to bind the translator to the app
+        # self.translator = translator
+        # self.app.removeTranslator(self.translator)
 
         # --------------------------------------------------------------------------------
         # Hello world slogan and click method
@@ -465,6 +515,11 @@ class MyWidget(QtWidgets.QMainWindow):
         """Terminate the current block design experiment.
         """
         self.block_manager = BlockManager()
+
+        self.fake_blocks = [
+            e for e in self.block_manager.design if e['name'] == 'Fake']
+        LOGGER.debug(f'Found fake blocks {self.fake_blocks}')
+
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
         LOGGER.debug(
@@ -477,12 +532,17 @@ class MyWidget(QtWidgets.QMainWindow):
 
         It also restarts the self.device_reader.
         """
+
         self.text.setText(random.choice(self.hello))
 
         self.start_button.setDisabled(True)
         self.terminate_button.setDisabled(False)
 
         self.block_manager = BlockManager(self.experiment_inputs['_buffer'])
+
+        self.fake_blocks = [
+            e for e in self.block_manager.design if e['name'] == 'Fake']
+        LOGGER.debug(f'Found fake blocks {self.fake_blocks}')
 
         if len(self.block_manager.design) == 0:
             self.start_button.setDisabled(False)
@@ -970,13 +1030,13 @@ class MyWidget(QtWidgets.QMainWindow):
             _update_summary()
 
         def _add_block_real():
-            _add_block('real')
+            _add_block('Real')
 
         def _add_block_fake():
-            _add_block('fake')
+            _add_block('Fake')
 
         def _add_block_empty():
-            _add_block('empty')
+            _add_block('Empty')
 
         inputs['clear'].clicked.connect(_clear)
         inputs['repeat'].clicked.connect(_repeat)
@@ -1097,11 +1157,12 @@ class MyWidget(QtWidgets.QMainWindow):
         t0 = pairs[0][-1]
         t1 = pairs[-1][-1]
 
+        # Compute the sampling rate in real time,
+        # and update the status_text component accordingly.
         n = len(pairs)-1
-        # r = int(n/(t1 - t0)+0.5)
-        r = n/max(t1 - t0, 1e-4)
+        sample_rate = n/max(t1 - t0, 1e-4)
         self.signal_monitor_widget.status_text.setText(
-            f'{r:.2f} Hz')
+            f'{sample_rate:.2f} Hz')
 
         block = self.block_manager.consume(t1)
 
@@ -1117,10 +1178,14 @@ class MyWidget(QtWidgets.QMainWindow):
                 f'Idle {pairs[-1][0]:.2f}')
             return t0, t1, ''
 
+        # Compute the block status in real time,
+        # and update the block_text component accordingly.
         if isinstance(block, dict):
             block_name = block['name']
+            block_start = block['start']
             stop = block['stop']
             total = block['total']
+            duration = block['duration']
 
             txt = f'{block_name} | {stop-t1:.0f} | {total-t1:.0f}'
 
@@ -1202,12 +1267,23 @@ class MyWidget(QtWidgets.QMainWindow):
         """
         current_block = self.update_signal_experiment_status(pairs)
 
+        # Doing nothing is current block is None
         if current_block is None:
             return
 
+        # Automatically toggle the display status of the graph components
         self.toggle_displays()
 
+        # The t0, t1 is the start, stop time of the incoming data
+        # The block_name is one of ['Real', 'Fake', 'Empty']
         t0, t1, block_name = current_block
+
+        # Make sure the points inside the fake blocks are correctly cut
+        pairs = [
+            p[2:] if any([p[-1] > fb['start'] and p[-1] < fb['stop']
+                         for fb in self.fake_blocks]) else p
+            for p in pairs
+        ]
 
         if self.display_mode == 'Delayed':
             self.update_curve13(pairs, t0, t1, block_name)
