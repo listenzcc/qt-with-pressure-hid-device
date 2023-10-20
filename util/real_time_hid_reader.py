@@ -33,7 +33,7 @@ from . import LOGGER, CONF
 # Function and class
 
 
-def digit2int(bytes16):
+def digit2int(bytes16: bytes) -> int:
     """Convert 16 bytes buffer into integer
 
     Args:
@@ -61,7 +61,6 @@ class TargetDevice(object):
 
     def __init__(self):
         self.detect_product()
-        pass
 
     def detect_product(self):
         """Detect the product string of the target device
@@ -80,7 +79,6 @@ class TargetDevice(object):
             device_info = dict(
                 error=f'Can not detect the product: {self.product_string}')
             device = None
-            pass
 
         self.device_info = device_info
         self.device = device
@@ -129,8 +127,7 @@ class FakePressure(object):
     def get(self):
         d = self.buffer[self.i]
         self.i += 1
-        if not self.i < self.n:
-            self.i = 0
+        self.i %= self.n
         return d
 
 
@@ -148,13 +145,13 @@ class RealTimeHidReader(object):
     """
 
     sample_rate = int(CONF['device']['sample_rate'])  # 125  # Hz
-    window_length_seconds = CONF['display']['window_length_seconds']
     delay_seconds = CONF['display']['delay_seconds']
+    delay_pnts = int(delay_seconds * sample_rate)
 
     g0 = CONF['device']['g0']
     g200 = CONF['device']['g200']
 
-    use_simplex_noise_flag = False
+    use_simplex_noise_flag = True  # False
 
     pseudo_data = None
     fake_pressure = FakePressure()
@@ -176,12 +173,12 @@ class RealTimeHidReader(object):
         """
         self.running = False
 
-        if self.device is not None:
-            # self.device.close()
-            pass
+        # if self.device is not None:
+        #     # self.device.close()
+        #     pass
 
         LOGGER.debug('Stopped the HID device reading loop.')
-        LOGGER.debug(f'The session collects {len(self.buffer)} time points.')
+        LOGGER.debug(f'The session collected {len(self.buffer)} time points.')
 
         return self.buffer.copy()
 
@@ -218,76 +215,88 @@ class RealTimeHidReader(object):
         self.buffer_delay = []
 
         self.n = 0
-        self.nd = 0
 
         device = self.device
         valid_device_flag = device is not None
-        delay_pnts = int(self.delay_seconds * self.sample_rate)
 
         LOGGER.debug('Starts the reading loop')
 
-        t0 = time.time()
+        tic = time.time()
         while self.running:
             t = time.time()
 
-            if t < (t0 + self.n * self.ts):
+            if t < (tic + self.n * self.ts):
                 time.sleep(0.001)
+                continue
+
+            if valid_device_flag:
+                # ! Case: The device is valid.
+                # Read real time pressure value and convert it
+                bytes16 = device.read(16, timeout=100)
+                raw_value = digit2int(bytes16)
+                value = self.number2pressure(raw_value)
+            elif self.use_simplex_noise_flag:
+                # ! Case: The device is invalid, but we use the simplex noise.
+                # Debug usage when device is known to be invalid,
+                # use the opensimplex noise instead of real pressure
+                raw_value = (opensimplex.noise2(
+                    x=10, y=t * 0.2) + 1) * 10000 + 44000
+                value = self.number2pressure(raw_value)
             else:
-                if valid_device_flag:
-                    # Read real time pressure value and convert it
-                    bytes16 = device.read(16, timeout=100)
-                    raw_value = digit2int(bytes16)
-                    value = self.number2pressure(raw_value)
-                else:
-                    if self.use_simplex_noise_flag:
-                        # Debug usage when device is known to be invalid,
-                        # use the opensimplex noise instead of real pressure
-                        raw_value = (opensimplex.noise2(
-                            x=10, y=t * 0.2) + 1) * 10000 + 44000
-                        value = self.number2pressure(raw_value)
-                    else:
-                        # Double -1 refers the device is invalid
-                        raw_value = -1
-                        value = -1
+                # ! Case: Otherwise, use -1, -1.
+                # Double -1 refers the device is invalid
+                raw_value = -1
+                value = -1
 
-                # The 1st and 2nd elements are used as the fake pressure value
-                fake = self.fake_pressure.get()
+            # The 1st and 2nd elements are used as the fake pressure value
+            fake = self.fake_pressure.get()
 
-                # The data is (pressure_value, digital_value, fake_pressure_value, fake_digital_value,seconds passed from the start)
-                self.buffer.append((value, raw_value, fake[0], fake[1], t-t0))
-                self.n += 1
+            # The data is the array of
+            # ! (pressure_value, digital_value, fake_pressure_value, fake_digital_value,seconds passed from the start)
+            self.buffer.append((value, raw_value, fake[0], fake[1], t-tic))
 
-                if self.n > delay_pnts:
-                    pairs = self.peek(delay_pnts)
-                    values = [e[0] for e in pairs]
-                    mean = np.mean(values)
-                    std = np.mean(values)
-                    max = np.max(values)
-                    min = np.min(values)
-                    timestamp = t - t0 - self.delay_seconds
-                    self.buffer_delay.append((mean, std, max, min, timestamp))
-                    self.nd += 1
+            # The buffer grows by 1
+            self.n += 1
 
-                # if self.n % self.sample_rate == 0:
-                #     print(self.n // self.sample_rate, len(self.buffer))
+            if self.n > self.delay_pnts:
+                pairs = self.peek(self.delay_pnts)
+                values = [e[:-1] for e in pairs]
+                avg = tuple(np.mean(values, axis=0))
+                timestamp = t - tic - self.delay_seconds
+                self.buffer_delay.append(avg + (timestamp,))
 
         t = time.time()
         LOGGER.debug(
-            f'Stopped the reading loop on {t}, lasting {t - t0} seconds.')
+            f'Stopped the reading loop on {t}, lasting {t - tic} seconds.')
 
         return
 
-    def peek(self, n: int, peek_delay=False) -> list:
+    def peek_by_seconds(self, sec: float, peek_delay: bool = False) -> list:
+        """
+        Peeks at the next `n` samples from the HID device,
+        where `n` is calculated based on the given number of seconds (`sec`) and the sample rate of the device.
+
+        Args:
+            sec (float): The number of seconds to peek at.
+
+        Returns:
+            list: A list of the next `n` samples from the HID device.
+        """
+
+        n = int(sec * self.sample_rate)
+        return self.peek(n, peek_delay)
+
+    def peek(self, n: int, peek_delay: bool = False) -> list:
         """Peek the latest n-points data
 
         Args:
             n (int): The count of points to be peeked;
-            peek_delay (boolean): Whether peek the buffer_delay.
 
         Returns:
             list: The got data, [(value, t), ...], value is the data value, t is the timestamp.
                   If peek_delay, the buffer_delay is used, [(mean, std, max, min, timestamp), ...] is is the format.
         """
+
         if peek_delay:
             return self.buffer_delay[-n:]
 

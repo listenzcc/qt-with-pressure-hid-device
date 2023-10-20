@@ -22,6 +22,7 @@ import json
 import time
 import random
 import threading
+import numpy as np
 import pyqtgraph as pg
 
 from pathlib import Path
@@ -330,7 +331,8 @@ class BlockManager(object):
 
     def consume(self, t: float):
         """
-        Consumes a block based on the provided time.
+        Consumes the first block in the design list if the given time (`t`) is greater than the stop time of the block.
+        Returns the consumed block or a message indicating if there are no blocks or if all blocks have been consumed.
 
         This method consumes a block from the `design` list based on the given time.
         If the `design` list is empty, it returns 'No block at all.'
@@ -382,8 +384,6 @@ class MyWidget(QtWidgets.QMainWindow):
     """
 
     window_length_seconds = CONF['display']['window_length_seconds']
-    window_length_pnts = CONF['display']['window_length_seconds'] * \
-        CONF['device']['sample_rate']
     delay_seconds = CONF['display']['delay_seconds']
 
     ref_value = CONF['display']['ref_value']
@@ -499,13 +499,17 @@ class MyWidget(QtWidgets.QMainWindow):
             self.timer.stop()
             LOGGER.warning(f'Stopped existing timer {self.timer}')
 
-        n = int(self.window_length_seconds * reader.sample_rate)
-        nd = int(reader.sample_rate *
-                 (self.window_length_seconds - self.delay_seconds))
-
         def update():
-            pairs = reader.peek(n)
-            pairs_delay = reader.peek(nd, peek_delay=True)
+            pairs = reader.peek_by_seconds(self.window_length_seconds)
+            pairs_delay = reader.peek_by_seconds(
+                self.window_length_seconds, peek_delay=True)
+
+            # not received any valid data,
+            # something is wrong.
+            if len(pairs) == 0:
+                LOGGER.error('Failed receive valid data')
+                return
+
             self.update_graph(pairs, pairs_delay)
 
         timer = QtCore.QTimer()
@@ -770,7 +774,7 @@ class MyWidget(QtWidgets.QMainWindow):
                     'Failed to correct with the 0 g, since the data is empty')
                 return
 
-            g0 = int(sum([e[1] for e in pairs]) / n)
+            g0 = int(sum(e[1] for e in pairs) / n)
             self.device_reader.g0 = g0
 
             threading.Thread(target=_write_to_correction, args=(0, g0)).start()
@@ -787,7 +791,7 @@ class MyWidget(QtWidgets.QMainWindow):
                     'Failed to correct with the 200 g, since the data is empty')
                 return
 
-            g200 = int(sum([e[1] for e in pairs]) / n)
+            g200 = int(sum(e[1] for e in pairs) / n)
             self.device_reader.g200 = g200
 
             threading.Thread(target=_write_to_correction,
@@ -1207,7 +1211,7 @@ class MyWidget(QtWidgets.QMainWindow):
         if pairs is None:
             return
 
-        if len(pairs) == 0:
+        if not pairs:
             return
 
         t0 = pairs[0][-1]
@@ -1314,13 +1318,12 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.ellipse4.setVisible(True)
             self.signal_monitor_widget.ellipse5.setVisible(True)
 
-    def update_graph(self, pairs: list = None, pairs_delay: list = None):
+    def update_graph(self, pairs: list, pairs_delay: list):
         """
         Update the graph as the very fast loop
 
         Args:
-            pairs (list, optional): The incoming data from the hid device. Defaults to None.
-            pairs_delay (list, optional): The delayed mean of the incoming data from th hid device. Defaults to None.
+            pairs (list): The incoming data from the hid device. Defaults to None.
         """
         current_block = self.update_signal_experiment_status(pairs)
 
@@ -1335,11 +1338,28 @@ class MyWidget(QtWidgets.QMainWindow):
         # The block_name is one of ['Real', 'Fake', 'Empty']
         t0, t1, block_name = current_block
 
-        # Make sure the points inside the fake blocks are correctly cut
+        # Make sure the points inside the fake blocks are correctly re-assigned
+        # The re-assignment is cut off the 1st and 2nd elements of the array,
+        # it makes sure the fake pressure value is on the head of the array.
         pairs = [
-            p[2:] if any([p[-1] > fb['start'] and p[-1] < fb['stop']
-                         for fb in self.fake_blocks]) else p
+            p[2:]
+            if any(
+                p[-1] > fb['start'] and p[-1] < fb['stop']
+                for fb in self.fake_blocks
+            )
+            else p
             for p in pairs
+        ]
+
+        pairs_delay = [
+            p[2:]
+            if any(
+                p[-1] + self.delay_seconds > fb['start'] and p[-1] +
+                self.delay_seconds < fb['stop']
+                for fb in self.fake_blocks
+            )
+            else p
+            for p in pairs_delay
         ]
 
         if self.display_mode == 'Delayed':
