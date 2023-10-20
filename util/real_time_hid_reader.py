@@ -19,6 +19,7 @@ Functions:
 # %% ---- 2023-09-17 ------------------------
 # Requirements and constants
 import hid
+import json
 import time
 import random
 import threading
@@ -93,6 +94,10 @@ class FakePressure(object):
         LOGGER.debug(
             f'Initialized {self.__class__} with {self.n} time points, the first is {self.buffer[0]}')
 
+    def load_file(self, file):
+        data = json.load(open(file))
+        return self.load(data)
+
     def load(self, data):
         if data is None:
             data = [
@@ -102,9 +107,24 @@ class FakePressure(object):
             LOGGER.warning(
                 'Load FakePressure with invalid data, using default instead.')
 
+        n = len(data)
+        d = np.array([e[0] for e in data])
+
+        stats = dict(
+            n=n,
+            max=int(np.max(d)),
+            min=int(np.min(d)),
+            avg=int(np.average(d)),
+            std=int(np.std(d))
+        )
+
         self.buffer = data
         self.i = 0
-        self.n = len(data)
+        self.n = n
+
+        LOGGER.debug(f'Loaded FakePressure data: {stats}')
+
+        return n, stats
 
     def get(self):
         d = self.buffer[self.i]
@@ -137,6 +157,7 @@ class RealTimeHidReader(object):
     use_simplex_noise_flag = False
 
     pseudo_data = None
+    fake_pressure = FakePressure()
 
     running = False
 
@@ -156,19 +177,18 @@ class RealTimeHidReader(object):
         self.running = False
 
         if self.device is not None:
-            self.device.close()
+            # self.device.close()
+            pass
 
         LOGGER.debug('Stopped the HID device reading loop.')
         LOGGER.debug(f'The session collects {len(self.buffer)} time points.')
 
         return self.buffer.copy()
 
-    def start(self, pseudo_data=None):
+    def start(self):
         """
         Start the getting loop in a thread.
         """
-        self.pseudo_data = pseudo_data
-        self.fake_pressure = FakePressure(self.pseudo_data)
 
         t = threading.Thread(target=self._reading, args=(), daemon=True)
         t.start()

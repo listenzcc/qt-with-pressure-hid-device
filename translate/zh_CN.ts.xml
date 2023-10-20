@@ -139,6 +139,16 @@
       <translation type="">实验设计汇总</translation>
     </message>
 
+    <message>
+      <source>Select fake pressure data folder</source>
+      <translation type="">选择伪反馈文件目录</translation>
+    </message>
+
+    <message>
+      <source>Load fake</source>
+      <translation type="">载入伪反馈</translation>
+    </message>
+
   </context>
 
   <context>

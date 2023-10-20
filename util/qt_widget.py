@@ -23,6 +23,8 @@ import time
 import random
 import threading
 import pyqtgraph as pg
+
+from pathlib import Path
 from datetime import datetime
 
 from PySide6 import QtCore, QtWidgets
@@ -301,6 +303,8 @@ class BlockManager(object):
             start=0,
             stop=blocks[0][1],
         ))
+        stop = blocks[0][1]
+        idx = 0
 
         for block in blocks[1:]:
             idx = len(design)
@@ -920,6 +924,8 @@ class MyWidget(QtWidgets.QMainWindow):
             refresh=QtWidgets.QPushButton(
                 _tr('Refresh')),
             save=QtWidgets.QPushButton(_tr('Save')),
+            load_fake=QtWidgets.QPushButton(_tr('Load fake')),
+            fake_file_info=QtWidgets.QLabel('N.A.'),
             _summary=QtWidgets.QTextEdit(),
             _buffer=[]
         )
@@ -972,6 +978,8 @@ class MyWidget(QtWidgets.QMainWindow):
         vbox.addWidget(inputs['_summary'])
 
         # --------------------------------------------------------------------------------
+        # The hbox inside the current vbox layout
+        # It contains 3 buttons
         widget = QtWidgets.QWidget()
         vbox.addWidget(widget)
         hbox = QtWidgets.QHBoxLayout()
@@ -982,6 +990,8 @@ class MyWidget(QtWidgets.QMainWindow):
         hbox.addWidget(inputs['refresh'])
 
         # --------------------------------------------------------------------------------
+        # The single button inside the current vbox layout
+        # It contains the save experiment design button
         vbox.addWidget(inputs['save'])
 
         def _save():
@@ -995,6 +1005,52 @@ class MyWidget(QtWidgets.QMainWindow):
         inputs['save'].clicked.connect(_save)
 
         # --------------------------------------------------------------------------------
+        # The hbox inside the current vbox layout
+        # It contains load fake pressure file and its info label
+        widget = QtWidgets.QWidget()
+        vbox.addWidget(widget)
+        hbox = QtWidgets.QHBoxLayout()
+        widget.setLayout(hbox)
+
+        hbox.addWidget(inputs['load_fake'])
+        hbox.addWidget(inputs['fake_file_info'])
+
+        def _load_fake():
+            output = QtWidgets.QFileDialog.getExistingDirectory(
+                self, _tr('Select fake pressure data folder'), self.data_folder_path.as_posix())
+
+            if output is None or output == '':
+                LOGGER.warning(
+                    'Not selected any directory for loading fake pressure data.')
+                return
+
+            folder = Path(output)
+            data_file = folder.joinpath('data.json')
+
+            if not folder.is_dir():
+                LOGGER.error(
+                    f'Invalid directory for loading fake pressure: {folder}')
+                return
+
+            if not data_file.is_file():
+                LOGGER.error(
+                    f'Invalid data file for loading fake pressure: {data_file}')
+                return
+
+            n, stats = self.device_reader.fake_pressure.load_file(data_file)
+
+            inputs['fake_file_info'].setText(
+                f'{data_file.relative_to(self.data_folder_path)}\n{stats}')
+
+            LOGGER.debug(
+                f'Loaded fake pressure data ({n} points): {data_file}')
+
+            return
+
+        inputs['load_fake'].clicked.connect(_load_fake)
+
+        # --------------------------------------------------------------------------------
+
         def _update_summary():
             n = 0
             length = 0
@@ -1170,6 +1226,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.block_text.setText(
                 'Finished')
             LOGGER.debug('Block design is completed.')
+            self.fake_blocks = []
             self.save_data()
             return
 

@@ -38,7 +38,7 @@ def compile_ts2qm(file):
     src = file.as_posix()
     dst = file.parent.joinpath(file.name.split('.')[0]).as_posix()
 
-    subprocess.check_call(f'lrelease.exe {src} -qm {dst}')
+    subprocess.check_call(f'lrelease.exe "{src}" -qm "{dst}"')
 
 
 # %% ---- 2023-09-21 ------------------------
