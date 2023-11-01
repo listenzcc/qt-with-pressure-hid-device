@@ -35,12 +35,18 @@ from PySide6.QtCore import QCoreApplication
 from . import LOGGER, CONF, root
 from .load_protocols import MyProtocol
 from .real_time_hid_reader import RealTimeHidReader
+from .score_animation import ScoreAnimation, pil2rgb
 
 from rich import inspect
 
+# ---------------
+sa = ScoreAnimation()
+sa.reset()
+sa.mk_frames()
 
 # %% ---- 2023-09-17 ------------------------
 # Function and class
+
 
 def tr(key: str, context: str = 'default', **kwargs) -> str:
     """Translate key with context
@@ -171,25 +177,27 @@ class SignalMonitorWidget(pg.PlotWidget):
         """
 
         # --------------------------------------------------------------------------------
+        # The curves of the pressure values (curve1 and curve2(delay)),
+        # and the reference pressure value (curve3)
         self.pen1 = pg.mkPen(color='blue')
         self.curve1 = self.plot([], [], pen=self.pen1)
 
-        # --------------------------------------------------------------------------------
         self.pen2 = pg.mkPen(color='red')
         self.curve2 = self.plot([], [], pen=self.pen2)
 
-        # --------------------------------------------------------------------------------
         self.pen3 = pg.mkPen(color='green')
         self.curve3 = self.plot([], [], pen=self.pen3)
 
         # --------------------------------------------------------------------------------
+        # The ellipse of pressure value response,
+        # the ellipse4 is the under-pressure circle,
+        # the ellipse5 is the reference circle.
         self.pen4 = pg.mkPen(color='red', width=5)
         self.ellipse4 = QtWidgets.QGraphicsEllipseItem(
             1000-250, 1000-250, 500, 500)
         self.ellipse4.setPen(self.pen4)
         self.addItem(self.ellipse4)
 
-        # --------------------------------------------------------------------------------
         self.pen5 = pg.mkPen(color='black', width=3)
         self.ellipse5 = QtWidgets.QGraphicsEllipseItem(
             1000-250, 1000-250, 500, 500)
@@ -197,6 +205,22 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.addItem(self.ellipse5)
 
         # --------------------------------------------------------------------------------
+        # The background image
+        # # vb = pg.ViewBox()
+        # # self.addItem(vb)
+        # # imv = pg.ImageView(self, view=vb)
+        # imv = pg.ImageView(self)
+        # # imv.show()
+        # imv.setImage(pil2rgb(sa.buffer[0]).transpose([2, 1, 0]))
+        # self.setBackground(imv)
+
+        self.animation_img = pg.ImageItem()
+        self.addItem(self.animation_img)
+        mat = pil2rgb(sa.buffer[0])  # .transpose([2, 1, 0])
+        self.animation_img.setImage(mat[::-1].transpose([1, 0, 2]))
+
+        # --------------------------------------------------------------------------------
+        # The block text on the left-top corner
         legend = self.getPlotItem().addLegend(offset=(10, 10))
         self.block_text = pg.TextItem('Idle')
         font = QFont()
@@ -208,6 +232,7 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.block_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
+        # The status text on the right-top corner
         self.status_text = pg.TextItem('--')
         font = QFont()
         font.setPixelSize(20)
@@ -219,7 +244,10 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.status_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
-        legend.setZValue(-10000000)
+        # Order the z-value of the components
+        # vb.setZValue(-100)
+        self.animation_img.setZValue(-100)
+        legend.setZValue(-10)
         self.curve3.setZValue(1)
         self.curve1.setZValue(2)
         self.curve2.setZValue(3)
@@ -268,6 +296,9 @@ class SignalMonitorWidget(pg.PlotWidget):
             self.curve3.setData([t0, t1], [ref_value, ref_value])
         else:
             self.curve3.setData([], [])
+
+    def update_animation_img(self, width: int, height: int):
+        pass
 
 
 class BlockManager(object):
@@ -392,7 +423,7 @@ class MyWidget(QtWidgets.QMainWindow):
     display_ref_flag = CONF['display']['display_ref_flag']
 
     display_mode = 'Realtime'
-    display_modes = ['Realtime', 'Delayed', 'Circle fit']
+    display_modes = ['Realtime', 'Delayed', 'Circle fit', 'Animation fit']
 
     window_title = 'Pressure feedback system by Dr. Zhang'
 
@@ -402,6 +433,8 @@ class MyWidget(QtWidgets.QMainWindow):
     fake_blocks = []
     my_protocol = MyProtocol()
     data_folder_path = root.joinpath('Data')
+
+    next_10s = 10
 
     def __init__(self, app, translator=None):
         # super(MyWidget, self).__init__()
@@ -507,7 +540,7 @@ class MyWidget(QtWidgets.QMainWindow):
             # not received any valid data,
             # something is wrong.
             if len(pairs) == 0:
-                LOGGER.error('Failed receive valid data')
+                LOGGER.error(f'Failed receive valid data')
                 return
 
             self.update_graph(pairs, pairs_delay)
@@ -516,6 +549,7 @@ class MyWidget(QtWidgets.QMainWindow):
         timer.timeout.connect(update)
         timer.start()
 
+        # Handle the timer, so I can stop it.
         self.timer = timer
 
     @QtCore.Slot()
@@ -568,6 +602,8 @@ class MyWidget(QtWidgets.QMainWindow):
         self.device_reader.stop()
         # time.sleep(1)
         self.device_reader.start()
+
+        self.next_10s = 10
 
     def save_data(self):
         """
@@ -1291,6 +1327,19 @@ class MyWidget(QtWidgets.QMainWindow):
 
         self.signal_monitor_widget.update_curve2(pairs_delay)
 
+    def update_animation_img(self, width: int, height: int, flag_10s: bool):
+        self.signal_monitor_widget.setXRange(0, width, padding=0)
+        self.signal_monitor_widget.setYRange(0, height, padding=0)
+
+        if flag_10s:
+            sa.mk_frames()
+
+        img = sa.pop()
+        if img is not None:
+            mat = pil2rgb(img)
+            self.signal_monitor_widget.animation_img.setImage(
+                mat[::-1].transpose([1, 0, 2]))
+
     def toggle_displays(self):
         """
         Setup visible value for the curves according to the current self.display_mode
@@ -1302,6 +1351,7 @@ class MyWidget(QtWidgets.QMainWindow):
                 self.display_inputs['zone3'].isChecked())
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
+            self.signal_monitor_widget.animation_img.setVisible(False)
 
         if self.display_mode == 'Realtime':
             self.signal_monitor_widget.curve1.setVisible(True)
@@ -1310,6 +1360,7 @@ class MyWidget(QtWidgets.QMainWindow):
                 self.display_inputs['zone3'].isChecked())
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
+            self.signal_monitor_widget.animation_img.setVisible(False)
 
         if self.display_mode == 'Circle fit':
             self.signal_monitor_widget.curve1.setVisible(False)
@@ -1317,6 +1368,15 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.curve3.setVisible(False)
             self.signal_monitor_widget.ellipse4.setVisible(True)
             self.signal_monitor_widget.ellipse5.setVisible(True)
+            self.signal_monitor_widget.animation_img.setVisible(False)
+
+        if self.display_mode == 'Animation fit':
+            self.signal_monitor_widget.curve1.setVisible(False)
+            self.signal_monitor_widget.curve2.setVisible(False)
+            self.signal_monitor_widget.curve3.setVisible(False)
+            self.signal_monitor_widget.ellipse4.setVisible(False)
+            self.signal_monitor_widget.ellipse5.setVisible(False)
+            self.signal_monitor_widget.animation_img.setVisible(True)
 
     def update_graph(self, pairs: list, pairs_delay: list):
         """
@@ -1361,6 +1421,13 @@ class MyWidget(QtWidgets.QMainWindow):
             else p
             for p in pairs_delay
         ]
+
+        if self.display_mode == 'Animation fit':
+            flag_10s = t1 > self.next_10s
+            if flag_10s:
+                LOGGER.debug(f'The 10s gap is reached, {self.next_10s}')
+                self.next_10s += 10
+            self.update_animation_img(400, 300, flag_10s)
 
         if self.display_mode == 'Delayed':
             self.update_curve13(pairs, t0, t1, block_name)
