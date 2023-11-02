@@ -240,7 +240,7 @@ class RealTimeHidReader(object):
                 # Debug usage when device is known to be invalid,
                 # use the opensimplex noise instead of real pressure
                 raw_value = (opensimplex.noise2(
-                    x=10, y=t * 0.2) + 1) * 10000 + 44000
+                    x=10, y=t * 0.2)) * 1000 + 44064 + (46112 - 44064) * 2.5  # 200g
                 value = self.number2pressure(raw_value)
             else:
                 # ! Case: Otherwise, use -1, -1.

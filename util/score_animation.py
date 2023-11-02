@@ -19,7 +19,10 @@ Functions:
 # %% ---- 2023-10-30 ------------------------
 # Requirements and constants
 import cv2
+import time
 import numpy as np
+
+from threading import Thread
 
 from rich import print, inspect
 from PIL import Image, ImageDraw, ImageFont
@@ -32,7 +35,6 @@ from . import LOGGER
 def pil2rgb(img):
     mat = np.array(img, dtype=np.uint8)
     # mat = cv2.cvtColor(mat, cv2.COLOR_BGR2RGB)
-    print(mat.shape)
     return mat
 
 
@@ -40,11 +42,12 @@ class ScoreAnimation(object):
     score_max = 100
     score_min = 0
     score_default = 50
-    width = 400
-    height = 300
-    font = ImageFont.truetype(
-        r'C:\\WINDOWS\\FONTS\\MSYHL.TTC', size=int(width/20))
-
+    interval = 100  # ms
+    width = 800
+    height = 600
+    font = ImageFont.truetype(r'C:\\WINDOWS\\FONTS\\MSYHL.TTC',
+                              size=width//20)
+    img = Image.new(mode='RGB', size=(width, height))
     buffer = []
 
     def __init__(self):
@@ -68,7 +71,19 @@ class ScoreAnimation(object):
             return self.buffer.pop(0)
         return
 
-    def update(self, step):
+    def shift(self):
+        img = self.pop()
+        if img is not None:
+            self.img = img
+        return img
+
+    def _animating(self):
+        secs = self.interval / 1000
+        while self.shift() is not None:
+            time.sleep(secs)
+        LOGGER.debug('Finished animating')
+
+    def update_score(self, step):
         self.score += step
 
         self.score = min(self.score, self.score_max)
@@ -77,7 +92,8 @@ class ScoreAnimation(object):
         LOGGER.debug(f'Updated score {self.score}')
 
     def mk_frames(self):
-        bg = Image.new(mode='RGB', size=(self.width, self.height))
+        bg = Image.new(mode='RGB', size=(
+            self.width, self.height), color='black')
         for j in range(10):
             img = bg.copy()
             draw = ImageDraw.Draw(img, mode='RGB')
@@ -93,6 +109,8 @@ class ScoreAnimation(object):
             self.buffer.append(img)
             # print(j, self.score, img)
 
+        Thread(target=self._animating, daemon=True).start()
+
     def scale_x(self, x: float) -> int:
         return int(x * self.width)
 
@@ -101,7 +119,32 @@ class ScoreAnimation(object):
 
     def scale(self, xy: tuple) -> tuple:
         x, y = xy
-        return (self.scale_x(x), self.scale_x(y))
+        return (self.scale_x(x), self.scale_y(y))
+
+    def tiny_window(self, img, ref=0, pairs=None):
+        if pairs is None:
+            pairs = [(ref,), (ref,)]
+
+        if len(pairs) == 1:
+            pairs.append(pairs[0])
+
+        n = len(pairs)
+
+        img = img.copy()
+
+        x = np.linspace(0.8, 0.9, n)
+        z = np.array([e[0] for e in pairs])
+        w = np.abs(z-ref) / ref
+        y = 0.5 - 0.1 * np.sign(z-ref) * (1-np.exp(-w))
+        xy = [self.scale((a, b)) for a, b in zip(x, y)]
+
+        draw = ImageDraw.Draw(img, mode='RGB')
+
+        draw.line([self.scale((0.8, 0.5)), self.scale((0.9, 0.5))], fill='red')
+        draw.line(xy, fill='green')
+
+        return img
+
 
 # %% ---- 2023-10-30 ------------------------
 # Play ground
