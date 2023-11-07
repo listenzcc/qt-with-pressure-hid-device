@@ -32,12 +32,12 @@ from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QFont
 from PySide6.QtCore import QCoreApplication
 
-from . import LOGGER, CONF, root
+from . import LOGGER, CONF, root_path
 from .load_protocols import MyProtocol
 from .real_time_hid_reader import RealTimeHidReader
 from .score_animation import ScoreAnimation, pil2rgb
 
-from rich import inspect
+from rich import print, inspect
 
 # ---------------
 sa = ScoreAnimation()
@@ -90,9 +90,17 @@ class SignalMonitorWidget(pg.PlotWidget):
         Init setup configures
         """
         self.setTitle(self.title)
-        self.showGrid(x=True, y=True, alpha=0.5)
         self.disableAutoRange()
+        self.curve_mode()
+
+    def curve_mode(self):
+        self.showGrid(x=True, y=True, alpha=0.5)
         self.setYRange(self.min_value, self.max_value)
+
+    def animation_mode(self):
+        self.showGrid(x=False, y=False)
+        self.setXRange(0, sa.width, padding=0)
+        self.setYRange(0, sa.height, padding=0)
 
     def ellipse4_size_changed(self, ref_value: float):
         """
@@ -216,7 +224,7 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         self.animation_img = pg.ImageItem()
         self.addItem(self.animation_img)
-        mat = pil2rgb(sa.buffer[0])  # .transpose([2, 1, 0])
+        mat = pil2rgb(sa.img)
         self.animation_img.setImage(mat[::-1].transpose([1, 0, 2]))
 
         # --------------------------------------------------------------------------------
@@ -432,9 +440,10 @@ class MyWidget(QtWidgets.QMainWindow):
     block_manager = BlockManager()
     fake_blocks = []
     my_protocol = MyProtocol()
-    data_folder_path = root.joinpath('Data')
+    data_folder_path = root_path.joinpath('Data')
 
-    next_10s = 10
+    next_10s_step = 3
+    next_10s = next_10s_step
 
     def __init__(self, app, translator=None):
         # super(MyWidget, self).__init__()
@@ -457,7 +466,7 @@ class MyWidget(QtWidgets.QMainWindow):
         self.text = QtWidgets.QLabel("Hello World",
                                      alignment=QtCore.Qt.AlignCenter)
 
-        self.start_button.clicked.connect(self.magic)
+        self.start_button.clicked.connect(self.start_block_design)
         self.terminate_button.clicked.connect(self.terminate)
         self.terminate_button.setDisabled(True)
 
@@ -568,12 +577,14 @@ class MyWidget(QtWidgets.QMainWindow):
             'Terminated block designed experiment, and the start_button disable status is released.')
 
     @QtCore.Slot()
-    def magic(self):
+    def start_block_design(self):
         """
         Start the block design experiment form the current setup.
 
         It also restarts the self.device_reader.
         """
+
+        sa.reset()
 
         self.text.setText(random.choice(self.hello))
 
@@ -603,7 +614,7 @@ class MyWidget(QtWidgets.QMainWindow):
         # time.sleep(1)
         self.device_reader.start()
 
-        self.next_10s = 10
+        self.next_10s = self.next_10s_step
 
     def save_data(self):
         """
@@ -795,7 +806,7 @@ class MyWidget(QtWidgets.QMainWindow):
         vbox4.addWidget(inputs['button_200g'])
 
         def _write_to_correction(real_g, num):
-            p = root.joinpath(f'correction/g{real_g}')
+            p = root_path.joinpath(f'correction/g{real_g}')
             with open(p, 'w') as f:
                 f.write(f'{num}')
             LOGGER.debug(f'Wrote correction {real_g}({num}) to {p}')
@@ -1327,18 +1338,26 @@ class MyWidget(QtWidgets.QMainWindow):
 
         self.signal_monitor_widget.update_curve2(pairs_delay)
 
-    def update_animation_img(self, width: int, height: int, flag_10s: bool):
-        self.signal_monitor_widget.setXRange(0, width, padding=0)
-        self.signal_monitor_widget.setYRange(0, height, padding=0)
+    def update_animation_img(self, flag_10s: bool, pairs=None):
+        # Enter into the animation mode
+        self.signal_monitor_widget.animation_mode()
 
         if flag_10s:
-            sa.mk_frames()
+            w = self.signal_monitor_widget.animation_img.width()
+            pw = self.signal_monitor_widget.animation_img.pixelWidth()
+            h = self.signal_monitor_widget.animation_img.height()
+            ph = self.signal_monitor_widget.animation_img.pixelHeight()
 
-        img = sa.pop()
-        if img is not None:
-            mat = pil2rgb(img)
-            self.signal_monitor_widget.animation_img.setImage(
-                mat[::-1].transpose([1, 0, 2]))
+            sa.width = int(w / pw)
+            sa.height = int(h / ph)
+            print(w, pw, h, ph)
+
+            score = np.random.randint(1, 99)
+            sa.mk_frames(score)
+
+        mat = pil2rgb(sa.tiny_window(sa.img, ref=self.ref_value, pairs=pairs))
+        self.signal_monitor_widget.animation_img.setImage(
+            mat[::-1].transpose([1, 0, 2]))
 
     def toggle_displays(self):
         """
@@ -1422,17 +1441,25 @@ class MyWidget(QtWidgets.QMainWindow):
             for p in pairs_delay
         ]
 
+        # Display the animation img
         if self.display_mode == 'Animation fit':
-            flag_10s = t1 > self.next_10s
-            if flag_10s:
+            flag_10s = False
+
+            while t1 > self.next_10s:
                 LOGGER.debug(f'The 10s gap is reached, {self.next_10s}')
-                self.next_10s += 10
-            self.update_animation_img(400, 300, flag_10s)
+                self.next_10s += self.next_10s_step
+                flag_10s = True
+
+            self.update_animation_img(flag_10s, pairs)
+            return
+
+        # Reset the y range
+        self.signal_monitor_widget.curve_mode()
 
         if self.display_mode == 'Delayed':
             self.update_curve13(pairs, t0, t1, block_name)
 
-            if not block_name == 'Empty':
+            if block_name != 'Empty':
                 self.update_curve2(pairs_delay)
 
         if self.display_mode == 'Realtime':

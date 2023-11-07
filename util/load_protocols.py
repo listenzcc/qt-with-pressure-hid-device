@@ -20,14 +20,14 @@ Functions:
 # Requirements and constants
 import json
 
-from . import root, LOGGER
+from . import root_path, LOGGER
 
 
 # %% ---- 2023-09-18 ------------------------
 # Function and class
 
 class MyProtocol(object):
-    folder = root.joinpath('Protocols')
+    folder = root_path.joinpath('Protocols')
 
     def __init__(self):
         self.folder.mkdir(exist_ok=True, parents=True)
