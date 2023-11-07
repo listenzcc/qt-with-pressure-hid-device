@@ -32,7 +32,7 @@ from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QFont
 from PySide6.QtCore import QCoreApplication
 
-from . import LOGGER, CONF, root
+from . import LOGGER, CONF, root_path
 from .load_protocols import MyProtocol
 from .real_time_hid_reader import RealTimeHidReader
 from .score_animation import ScoreAnimation, pil2rgb
@@ -440,9 +440,9 @@ class MyWidget(QtWidgets.QMainWindow):
     block_manager = BlockManager()
     fake_blocks = []
     my_protocol = MyProtocol()
-    data_folder_path = root.joinpath('Data')
+    data_folder_path = root_path.joinpath('Data')
 
-    next_10s_step = 5
+    next_10s_step = 3
     next_10s = next_10s_step
 
     def __init__(self, app, translator=None):
@@ -466,7 +466,7 @@ class MyWidget(QtWidgets.QMainWindow):
         self.text = QtWidgets.QLabel("Hello World",
                                      alignment=QtCore.Qt.AlignCenter)
 
-        self.start_button.clicked.connect(self.magic)
+        self.start_button.clicked.connect(self.start_block_design)
         self.terminate_button.clicked.connect(self.terminate)
         self.terminate_button.setDisabled(True)
 
@@ -577,12 +577,14 @@ class MyWidget(QtWidgets.QMainWindow):
             'Terminated block designed experiment, and the start_button disable status is released.')
 
     @QtCore.Slot()
-    def magic(self):
+    def start_block_design(self):
         """
         Start the block design experiment form the current setup.
 
         It also restarts the self.device_reader.
         """
+
+        sa.reset()
 
         self.text.setText(random.choice(self.hello))
 
@@ -804,7 +806,7 @@ class MyWidget(QtWidgets.QMainWindow):
         vbox4.addWidget(inputs['button_200g'])
 
         def _write_to_correction(real_g, num):
-            p = root.joinpath(f'correction/g{real_g}')
+            p = root_path.joinpath(f'correction/g{real_g}')
             with open(p, 'w') as f:
                 f.write(f'{num}')
             LOGGER.debug(f'Wrote correction {real_g}({num}) to {p}')
@@ -1350,7 +1352,8 @@ class MyWidget(QtWidgets.QMainWindow):
             sa.height = int(h / ph)
             print(w, pw, h, ph)
 
-            sa.mk_frames()
+            score = np.random.randint(1, 99)
+            sa.mk_frames(score)
 
         mat = pil2rgb(sa.tiny_window(sa.img, ref=self.ref_value, pairs=pairs))
         self.signal_monitor_widget.animation_img.setImage(
@@ -1440,10 +1443,13 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # Display the animation img
         if self.display_mode == 'Animation fit':
-            flag_10s = t1 > self.next_10s
-            if flag_10s:
+            flag_10s = False
+
+            while t1 > self.next_10s:
                 LOGGER.debug(f'The 10s gap is reached, {self.next_10s}')
                 self.next_10s += self.next_10s_step
+                flag_10s = True
+
             self.update_animation_img(flag_10s, pairs)
             return
 

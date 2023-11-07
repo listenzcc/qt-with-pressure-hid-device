@@ -27,11 +27,11 @@ from loguru import logger as LOGGER
 # %% ---- 2023-09-17 ------------------------
 # Function and class
 
-root = Path(__file__).parent.parent
+root_path = Path(__file__).parent.parent
 
 # %% ---- 2023-09-17 ------------------------
 # conf
-conf_path = root.joinpath('conf/conf.yaml')
+conf_path = root_path.joinpath('conf/conf.yaml')
 conf_path.parent.mkdir(parents=True, exist_ok=True)
 
 setup = dict(
@@ -46,8 +46,8 @@ setup = dict(
     device=dict(
         sample_rate=125,  # Hz
         product_string='HIDtoUART example',  # name
-        g0=int(open(root.joinpath('correction/g0')).read()),  # 44000,
-        g200=int(open(root.joinpath('correction/g200')).read())  # 46000,
+        g0=int(open(root_path.joinpath('correction/g0')).read()),  # 44000,
+        g200=int(open(root_path.joinpath('correction/g200')).read())  # 46000,
     )
 )
 
@@ -58,7 +58,7 @@ print(OmegaConf.to_yaml(CONF), file=open(conf_path, 'w'))
 
 # %% ---- 2023-09-17 ------------------------
 # logging
-logger_path = root.joinpath(
+logger_path = root_path.joinpath(
     f'log/{datetime.strftime(datetime.now(), "%Y-%m-%d")}.log')
 logger_path.parent.mkdir(parents=True, exist_ok=True)
 
