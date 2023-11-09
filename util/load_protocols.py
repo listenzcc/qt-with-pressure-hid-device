@@ -54,7 +54,7 @@ class MyProtocol(object):
             ```
         """
 
-        self.protocols = dict()
+        self.protocols = {}
 
         for path in self.folder.iterdir():
             if not all([
