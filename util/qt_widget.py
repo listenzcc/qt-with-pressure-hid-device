@@ -27,6 +27,7 @@ import pyqtgraph as pg
 
 from pathlib import Path
 from datetime import datetime
+from threading import Thread
 
 from PySide6 import QtCore, QtWidgets
 from PySide6.QtGui import QFont
@@ -1350,11 +1351,13 @@ class MyWidget(QtWidgets.QMainWindow):
 
             sa.width = int(w / pw)
             sa.height = int(h / ph)
-            print(w, pw, h, ph)
+            # print(w, pw, h, ph)
 
             score = np.random.randint(1, 99)
-            sa.mk_frames(score)
+            # sa.mk_frames(score)
+            Thread(target=sa.mk_frames, args=(score, ), daemon=True).start()
 
+        # Draw the tiny window for pressure feedback
         mat = pil2rgb(sa.tiny_window(sa.img, ref=self.ref_value, pairs=pairs))
         self.signal_monitor_widget.animation_img.setImage(
             mat[::-1].transpose([1, 0, 2]))

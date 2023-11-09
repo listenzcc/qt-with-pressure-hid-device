@@ -75,6 +75,22 @@ class ScoreAnimation(object):
         return gif_buffer
 
     def reset(self, score: int = None):
+        """
+        Resets the score animation by setting the score to the default value and clearing the buffer.
+
+        Args:
+            self: The ScoreAnimation instance.
+            score (int, optional): The new score value. If not provided, the default score value will be used.
+
+        Returns:
+            int: The updated score value.
+
+        Examples:
+            anim = ScoreAnimation()
+            anim.reset()
+            anim.reset(100)
+        """
+
         self.score = self.score_default if score is None else score
         self.buffer = []
 
@@ -88,17 +104,51 @@ class ScoreAnimation(object):
         return frames
 
     def pop(self):
+        """
+        Pops an image from the buffer.
+
+        Args:
+            self: The ScoreAnimation instance.
+
+        Returns:
+            img: The popped image from the buffer, or None if the buffer is empty.
+        """
+
         if len(self.buffer) > 0:
             return self.buffer.pop(0)
         return
 
     def shift(self):
+        """
+        Shifts the score by popping an image from the stack and updating the current image.
+
+        Args:
+            self: The ScoreAnimation instance.
+
+        Returns:
+            img: The popped image from the stack, or None if the stack is empty.
+        """
+
         img = self.pop()
         if img is not None:
             self.img = img
         return img
 
     def _animating(self):
+        """
+        Animate the score by shifting it and pausing between shifts.
+
+        Args:
+            self: The ScoreAnimation instance.
+
+        Returns:
+            None
+
+        Examples:
+            anim = ScoreAnimation()
+            anim._animating()
+        """
+
         secs = self.interval / 1000
         while self.shift() is not None:
             time.sleep(secs)
@@ -117,8 +167,8 @@ class ScoreAnimation(object):
             score = self.score
             LOGGER.warning(f'Score is not provided, use the current: {score}')
 
-        bg = Image.new(mode='RGB', size=(
-            self.width, self.height), color='black')
+        # bg = Image.new(mode='RGB', size=(
+        #     self.width, self.height), color='black')
 
         step = 1 if self.score < score else -1
 
@@ -131,8 +181,10 @@ class ScoreAnimation(object):
             img = self.gif_buffer[s].copy()
             img = img.resize((self.width, self.height))
 
+            # Make the drawer as draw
             draw = ImageDraw.Draw(img, mode='RGB')
 
+            # Draw the score text
             draw.text(
                 self.scale((0.5, 0.1)),
                 f'-- 得分 {s} | {score} --',
@@ -140,30 +192,18 @@ class ScoreAnimation(object):
                 anchor='ms',
                 fill='red')
 
+            # Draw the score bar's background
             draw.rectangle(
                 (self.scale((0.2, 0.9)), self.scale((0.8, 0.95))), outline='#331139')
 
+            # Draw the score bar's foreground
             draw.rectangle(
                 (self.scale((0.2, 0.9)), self.scale((0.2 + 0.6 * s / 100, 0.95))), fill='#331139')
 
+            # Append the buffer
             self.buffer.append(img)
 
         self.score = score
-
-        # for j in range(10):
-        #     img = bg.copy()
-        #     draw = ImageDraw.Draw(img, mode='RGB')
-
-        #     draw.rectangle(
-        #         (self.scale((0.1, 0.2)), self.scale((0.5, 0.6))),
-        #         fill=(j * 25, 0, 0),
-        #         outline='white')
-
-        #     draw.text(self.scale((0.5, 0.3)),
-        #               f'-- 序号 {j} --', font=self.font, fill='white')
-
-        #     self.buffer.append(img)
-        #     # print(j, self.score, img)
 
         Thread(target=self._animating, daemon=True).start()
 
@@ -178,13 +218,24 @@ class ScoreAnimation(object):
         return (self.scale_x(x), self.scale_y(y))
 
     def tiny_window(self, img, ref=0, pairs=None):
-        '''
-        Small window for real-time pressure value vs. reference pressure.
+        """
+        Creates a tiny window visualization by drawing reference and real-time curves on the given image.
 
-        Draw the curves into the img's clone, so the input img is kept unchanged,
-        and the output is the new image with the curves.
+        Args:
+            self: The ScoreAnimation instance.
+            img: The image to draw the curves on.
+            ref (int, optional): The reference value. Defaults to 0.
+            pairs (list, optional): List of value pairs. Each pair represents a point on the real-time curve. Defaults to None.
 
-        '''
+        Returns:
+            img: The image with the reference and real-time curves drawn.
+
+        Examples:
+            anim = ScoreAnimation()
+            img = Image.new('RGB', (800, 600))
+            img = anim.tiny_window(img, ref=10, pairs=[(5,), (8,), (12,)])
+        """
+
         if pairs is None:
             pairs = [(ref,), (ref,)]
 
