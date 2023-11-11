@@ -79,11 +79,8 @@ class SignalMonitorWidget(pg.PlotWidget):
 
     def __init__(self):
         super().__init__()
-
         self.set_config()
-
         self.place_components()
-
         LOGGER.debug(f'Initialized {self.__class__}')
 
     def set_config(self):
@@ -92,9 +89,19 @@ class SignalMonitorWidget(pg.PlotWidget):
         """
         self.setTitle(self.title)
         self.disableAutoRange()
-        self.curve_mode()
+        self.enter_curve_mode()
 
-    def curve_mode(self):
+    def enter_curve_mode(self):
+        """
+        Sets the curve mode of the widget.
+
+        Args:
+            self: The instance of the widget.
+
+        Returns:
+            None
+        """
+
         self.showGrid(x=True, y=True, alpha=0.5)
         self.setYRange(self.min_value, self.max_value)
 
@@ -253,6 +260,21 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.status_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
+        # The current block remainder,
+        # it is on the center of the graph
+        self.current_block_remainder_text = pg.TextItem('CBRT')
+        font = QFont()
+        font.setPixelSize(40)
+        self.current_block_remainder_text.setFont(font)
+        self.current_block_remainder_text.setAnchor((0, 0))
+        self.current_block_remainder_text.setColor('red')
+        self.current_block_remainder_text.setPos(
+            self.width()/2, self.height()/2)
+        self.current_block_remainder_text.setFlag(
+            self.status_text.GraphicsItemFlag.ItemIgnoresTransformations)
+        self.current_block_remainder_text.setParentItem(legend)
+
+        # --------------------------------------------------------------------------------
         # Order the z-value of the components
         # vb.setZValue(-100)
         self.animation_img.setZValue(-100)
@@ -263,6 +285,22 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         LOGGER.debug(
             f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
+
+    def on_resized(self):
+        """
+        Performs actions when the widget is resized.
+
+        Args:
+            self: The instance of the widget.
+
+        Returns:
+            None
+        """
+
+        self.block_text.setAnchor((0, 0))
+        self.status_text.setPos(self.width() - 80, 0)
+        self.current_block_remainder_text.setPos(
+            self.width()/2, self.height()/2)
 
     def update_curve1(self, pairs):
         """
@@ -431,6 +469,8 @@ class MyWidget(QtWidgets.QMainWindow):
     min_value = CONF['display']['min_value']
     display_ref_flag = CONF['display']['display_ref_flag']
 
+    remainder_dict = CONF['experiment']['remainder']
+
     display_mode = 'Realtime'
     display_modes = ['Realtime', 'Delayed', 'Circle fit', 'Animation fit']
 
@@ -513,6 +553,25 @@ class MyWidget(QtWidgets.QMainWindow):
         # Make layout 0 3
         layout = QtWidgets.QVBoxLayout(self.widget_0_3)
         self.display_inputs = self.display_stuff(layout)
+
+        # # Handle resize event
+        # self.resizeEvent.connect(self.on_resized)
+
+    def resizeEvent(self, event):
+        """
+        Handles the resize event of the main window.
+
+        Args:
+            self: The instance of the main window.
+            event: The resize event object.
+
+        Returns:
+            None
+        """
+
+        self.signal_monitor_widget.on_resized()
+
+        LOGGER.debug(f'Main window resized to size {event}')
 
     def link_reader(self, reader: RealTimeHidReader):
         """
@@ -1023,7 +1082,8 @@ class MyWidget(QtWidgets.QMainWindow):
         widget.setLayout(hbox)
         hbox.addWidget(inputs['real'])
         hbox.addWidget(inputs['fake'])
-        hbox.addWidget(inputs['empty'])
+        # Disable the empty block
+        # hbox.addWidget(inputs['empty'])
 
         # --------------------------------------------------------------------------------
         vbox.addWidget(QtWidgets.QLabel(_tr('Summary')))
@@ -1118,7 +1178,8 @@ class MyWidget(QtWidgets.QMainWindow):
                     '',
                     '# Real: Block with real feedback',
                     '# Fake: Block with fake feedback',
-                    '# Empty: Block with empty screen',
+                    # Disable empty block
+                    # '# Empty: Block with empty screen',
                     '',
                     'Idx: Type\t: Block\t: Total'] + text
 
@@ -1285,6 +1346,8 @@ class MyWidget(QtWidgets.QMainWindow):
         if block == 'No block at all.':
             self.signal_monitor_widget.block_text.setText(
                 f'Idle {pairs[-1][0]:.2f}')
+            self.signal_monitor_widget.current_block_remainder_text.setText(
+                self.remainder_dict.get('NA', '--'))
             return t0, t1, ''
 
         # Compute the block status in real time,
@@ -1299,6 +1362,8 @@ class MyWidget(QtWidgets.QMainWindow):
             txt = f'{block_name} | {stop-t1:.0f} | {total-t1:.0f}'
 
             self.signal_monitor_widget.block_text.setText(txt)
+            self.signal_monitor_widget.current_block_remainder_text.setText(
+                self.remainder_dict.get(block_name, '--'))
 
         return t0, t1, block_name
 
@@ -1339,20 +1404,23 @@ class MyWidget(QtWidgets.QMainWindow):
 
         self.signal_monitor_widget.update_curve2(pairs_delay)
 
+    def _resize_animation_img(self):
+        w = self.signal_monitor_widget.animation_img.width()
+        pw = self.signal_monitor_widget.animation_img.pixelWidth()
+        h = self.signal_monitor_widget.animation_img.height()
+        ph = self.signal_monitor_widget.animation_img.pixelHeight()
+
+        sa.width = int(w / pw)
+        sa.height = int(h / ph)
+
+        # print(w, pw, h, ph)
+
     def update_animation_img(self, flag_10s: bool, pairs=None):
         # Enter into the animation mode
         self.signal_monitor_widget.animation_mode()
 
         if flag_10s:
-            w = self.signal_monitor_widget.animation_img.width()
-            pw = self.signal_monitor_widget.animation_img.pixelWidth()
-            h = self.signal_monitor_widget.animation_img.height()
-            ph = self.signal_monitor_widget.animation_img.pixelHeight()
-
-            sa.width = int(w / pw)
-            sa.height = int(h / ph)
-            # print(w, pw, h, ph)
-
+            self._resize_animation_img()
             score = np.random.randint(1, 99)
             # sa.mk_frames(score)
             Thread(target=sa.mk_frames, args=(score, ), daemon=True).start()
@@ -1374,6 +1442,8 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
             self.signal_monitor_widget.animation_img.setVisible(False)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(
+                True)
 
         if self.display_mode == 'Realtime':
             self.signal_monitor_widget.curve1.setVisible(True)
@@ -1383,6 +1453,8 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
             self.signal_monitor_widget.animation_img.setVisible(False)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(
+                True)
 
         if self.display_mode == 'Circle fit':
             self.signal_monitor_widget.curve1.setVisible(False)
@@ -1391,6 +1463,8 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.ellipse4.setVisible(True)
             self.signal_monitor_widget.ellipse5.setVisible(True)
             self.signal_monitor_widget.animation_img.setVisible(False)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(
+                True)
 
         if self.display_mode == 'Animation fit':
             self.signal_monitor_widget.curve1.setVisible(False)
@@ -1399,6 +1473,8 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
             self.signal_monitor_widget.animation_img.setVisible(True)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(
+                False)
 
     def update_graph(self, pairs: list, pairs_delay: list):
         """
@@ -1456,8 +1532,8 @@ class MyWidget(QtWidgets.QMainWindow):
             self.update_animation_img(flag_10s, pairs)
             return
 
-        # Reset the y range
-        self.signal_monitor_widget.curve_mode()
+        # Enter the curve mode for the monitor
+        self.signal_monitor_widget.enter_curve_mode()
 
         if self.display_mode == 'Delayed':
             self.update_curve13(pairs, t0, t1, block_name)

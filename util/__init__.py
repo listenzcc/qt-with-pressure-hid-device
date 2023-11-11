@@ -48,6 +48,13 @@ setup = dict(
         product_string='HIDtoUART example',  # name
         g0=int(open(root_path.joinpath('correction/g0')).read()),  # 44000,
         g200=int(open(root_path.joinpath('correction/g200')).read())  # 46000,
+    ),
+    experiment=dict(
+        remainder=dict(
+            Real='T',
+            Fake='F',
+            NA='--'
+        )
     )
 )
 

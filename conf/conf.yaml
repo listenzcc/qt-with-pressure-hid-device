@@ -10,4 +10,9 @@ device:
   product_string: HIDtoUART example
   g0: 44064
   g200: 46122
+experiment:
+  remainder:
+    Real: T
+    Fake: F
+    NA: --
 
