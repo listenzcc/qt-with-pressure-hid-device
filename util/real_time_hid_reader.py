@@ -125,6 +125,13 @@ class FakePressure(object):
         return n, stats
 
     def get(self):
+        '''
+        Get the FakePressure data form the i-th position.
+
+        Always follows,
+        - the 1st value is pressure value,
+        - the 2nd value is its digital.
+        '''
         d = self.buffer[self.i]
         self.i += 1
         self.i %= self.n
@@ -164,6 +171,12 @@ class RealTimeHidReader(object):
 
         LOGGER.debug(
             f'Initialized device: {self.device} with {self.sample_rate} | {self.ts}')
+
+    def recompute_delay(self, delay_seconds: int):
+        self.delay_seconds = delay_seconds
+        self.delay_pnts = int(delay_seconds * self.sample_rate)
+        LOGGER.debug(
+            f'Recompute delay: {self.delay_seconds} to {self.delay_pnts} points')
 
     def stop(self) -> list:
         """Stop the collecting loop.
@@ -258,12 +271,16 @@ class RealTimeHidReader(object):
             # The buffer grows by 1
             self.n += 1
 
+            # The buffer_delay's row is:
+            # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestampe)
             if self.n > self.delay_pnts:
                 pairs = self.peek(self.delay_pnts)
-                values = [e[:-1] for e in pairs]
+                values = [(e[0], e[2]) for e in pairs]
                 avg = tuple(np.mean(values, axis=0))
+                std = tuple(np.std(values, axis=0))
                 timestamp = t - tic - self.delay_seconds
-                self.buffer_delay.append(avg + (timestamp,))
+                # self.buffer_delay.append((avg, std, timestamp))
+                self.buffer_delay.append(avg+std+(timestamp,))
 
         t = time.time()
         LOGGER.debug(

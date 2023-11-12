@@ -63,7 +63,7 @@ if __name__ == '__main__':
         LOGGER.error(f'Failed to load translator: {lang}: {path}')
 
     widget = MyWidget(app)
-    widget.link_reader(real_time_hid_reader)
+    widget.restart_reader(real_time_hid_reader)
     # widget.resize(800, 600)
     widget.show()
 
