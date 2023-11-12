@@ -68,7 +68,7 @@ class ScoreAnimation(object):
         n = self.gif.n_frames
 
         for j in range(100):
-            self.gif.seek(int(j/2))
+            self.gif.seek(int(j/2)+1)
             # self.gif.seek(int(j/10))
             gif_buffer.append(self.gif.convert('RGB'))
         LOGGER.debug('Parsed gif into gif_buffer')
@@ -154,13 +154,13 @@ class ScoreAnimation(object):
             time.sleep(secs)
         LOGGER.debug('Finished animating')
 
-    def update_score(self, step):
-        self.score += step
+    def safe_update_score(self, step):
+        score = self.score + step
 
-        self.score = min(self.score, self.score_max)
-        self.score = max(self.score, self.score_min)
+        score = min(score, self.score_max)
+        score = max(score, self.score_min)
 
-        LOGGER.debug(f'Updated score {self.score}')
+        return score
 
     def mk_frames(self, score: int = None):
         if score is None:

@@ -486,6 +486,10 @@ class MyWidget(QtWidgets.QMainWindow):
     next_10s_step = 3
     next_10s = next_10s_step
 
+    animation_feedback_type = 'Avg.'
+    animation_feedback_types = ['Avg.', 'Std.']
+    animation_feedback_threshold = 10
+
     def __init__(self, app, translator=None):
         # super(MyWidget, self).__init__()
         super().__init__()
@@ -573,7 +577,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         LOGGER.debug(f'Main window resized to size {event}')
 
-    def link_reader(self, reader: RealTimeHidReader):
+    def restart_reader(self, reader: RealTimeHidReader):
         """
         Link to the hid device reader.
 
@@ -586,6 +590,9 @@ class MyWidget(QtWidgets.QMainWindow):
             time.sleep(0.1)
             LOGGER.warning(
                 f'Closed existing device reader, discharging {len(pairs)} pnts data')
+
+        # Reset the next_10s timer
+        self.next_10s = self.next_10s_step
 
         reader.delay_seconds = self.delay_seconds
 
@@ -674,6 +681,7 @@ class MyWidget(QtWidgets.QMainWindow):
         # time.sleep(1)
         self.device_reader.start()
 
+        # Reset the next_10s timer
         self.next_10s = self.next_10s_step
 
     def save_data(self):
@@ -728,6 +736,8 @@ class MyWidget(QtWidgets.QMainWindow):
             line3_width=QtWidgets.QSpinBox(),
             line3_ref_value=QtWidgets.QDial(),
             zone3=QtWidgets.QGroupBox(_tr('Ref. value')),
+            animation_value_type=QtWidgets.QComboBox(),
+            animation_value_threshold=QtWidgets.QDial(),
             display_mode=QtWidgets.QComboBox(),
             button_0g=QtWidgets.QPushButton(_tr('Correction 0g')),
             button_200g=QtWidgets.QPushButton(_tr('Correction 200g')),
@@ -742,18 +752,18 @@ class MyWidget(QtWidgets.QMainWindow):
         groupbox = QtWidgets.QGroupBox(_tr('Display setup'))
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
-        vbox = QtWidgets.QVBoxLayout()
-        groupbox.setLayout(vbox)
+        main_box_layout = QtWidgets.QVBoxLayout()
+        groupbox.setLayout(main_box_layout)
 
         # --------------------------------------------------------------------------------
         inputs['display_mode'].addItems(self.display_modes)
         inputs['display_mode'].setCurrentText(self.display_mode)
 
-        vbox.addWidget(inputs['display_mode'])
+        main_box_layout.addWidget(inputs['display_mode'])
 
         # --------------------------------------------------------------------------------
         zone1 = QtWidgets.QGroupBox(_tr('Curve (realtime)'))
-        vbox.addWidget(zone1)
+        main_box_layout.addWidget(zone1)
         vbox1 = QtWidgets.QVBoxLayout()
         zone1.setLayout(vbox1)
 
@@ -773,7 +783,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # --------------------------------------------------------------------------------
         zone2 = QtWidgets.QGroupBox(_tr('Curve (delay)'))
-        vbox.addWidget(zone2)
+        main_box_layout.addWidget(zone2)
         vbox2 = QtWidgets.QVBoxLayout()
         zone2.setLayout(vbox2)
 
@@ -803,15 +813,53 @@ class MyWidget(QtWidgets.QMainWindow):
 
         def _change_delay(delay):
             self.delay_seconds = delay
-            self.link_reader(self.device_reader)
-            pass
+            self.device_reader.recompute_delay(delay)
+            self.restart_reader(self.device_reader)
 
         inputs['line2_delay'].valueChanged.connect(_change_delay)
 
         # --------------------------------------------------------------------------------
+        zone_animation = QtWidgets.QGroupBox(_tr('Animation opt.'))
+        zone_animation.setCheckable(True)
+        main_box_layout.addWidget(zone_animation)
+        vbox_animation = QtWidgets.QVBoxLayout()
+        zone_animation.setLayout(vbox_animation)
+
+        animation_value_type = inputs['animation_value_type']
+        animation_value_type.addItems(self.animation_feedback_types)
+        vbox_animation.addWidget(QtWidgets.QLabel(_tr('Feedback')))
+        vbox_animation.addWidget(animation_value_type)
+
+        def _change_feedback_type(idx):
+            value = self.animation_feedback_types[idx]
+            self.animation_feedback_type = value
+            LOGGER.debug(f'Changed animation feedback type into: {value}')
+
+        animation_value_type.currentIndexChanged.connect(_change_feedback_type)
+
+        hbox = QtWidgets.QHBoxLayout()
+        vbox_animation.addLayout(hbox)
+        hbox.addWidget(QtWidgets.QLabel(_tr('Threshold')))
+        label_threshold = QtWidgets.QLabel()
+        hbox.addWidget(label_threshold)
+        vbox_animation.addWidget(inputs['animation_value_threshold'])
+
+        def _label_threshold_changed(value):
+            label_threshold.setText(f'{value}')
+            self.animation_feedback_threshold = value
+            LOGGER.debug(f'Changed animation feedback threshold into: {value}')
+
+        inputs['animation_value_threshold'].valueChanged.connect(
+            _label_threshold_changed)
+
+        inputs['animation_value_threshold'].setValue(10)
+        inputs['animation_value_threshold'].setMinimum(1)
+        inputs['animation_value_threshold'].setMaximum(200)
+
+        # --------------------------------------------------------------------------------
         zone3 = inputs['zone3']
         zone3.setCheckable(True)
-        vbox.addWidget(zone3)
+        main_box_layout.addWidget(zone3)
         vbox3 = QtWidgets.QVBoxLayout()
         zone3.setLayout(vbox3)
 
@@ -858,7 +906,7 @@ class MyWidget(QtWidgets.QMainWindow):
         zone4 = QtWidgets.QGroupBox(_tr('Correction'))
         zone4.setCheckable(True)
         zone4.setChecked(False)
-        vbox.addWidget(zone4)
+        main_box_layout.addWidget(zone4)
         vbox4 = QtWidgets.QVBoxLayout()
         zone4.setLayout(vbox4)
 
@@ -992,15 +1040,31 @@ class MyWidget(QtWidgets.QMainWindow):
         def _change_display_mode(mode):
             self.display_mode = mode
 
+            # zone1: option for realtime curve
+            # zone2: option for delayed curve
+            # zone3: option for reference pressure value
+            # zone4: weight correction
+
             if mode == 'Realtime':
                 zone1.setVisible(True)
                 zone2.setVisible(False)
                 zone3.setVisible(True)
+                zone4.setVisible(True)
+                zone_animation.setVisible(False)
 
             if mode == 'Delayed':
                 zone1.setVisible(True)
                 zone2.setVisible(True)
                 zone3.setVisible(True)
+                zone4.setVisible(True)
+                zone_animation.setVisible(False)
+
+            if mode == 'Animation fit':
+                zone1.setVisible(False)
+                zone2.setVisible(True)
+                zone3.setVisible(True)
+                zone4.setVisible(False)
+                zone_animation.setVisible(True)
 
         inputs['display_mode'].currentTextChanged.connect(_change_display_mode)
         _change_display_mode(self.display_mode)
@@ -1415,13 +1479,50 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # print(w, pw, h, ph)
 
+    def _compare_animation_feedback(self, values):
+        avg, std, _ = values
+
+        step = 0
+
+        if self.animation_feedback_type == 'Std.':
+            if std > self.animation_feedback_threshold:
+                step = -10
+            if std <= self.animation_feedback_threshold:
+                step = 10
+
+            LOGGER.debug(
+                f'Compare animation feedback (std), {step}, {std}, {self.animation_feedback_threshold}')
+
+        if self.animation_feedback_type == 'Avg.':
+            diff = np.abs(avg-self.ref_value)
+            if diff > self.animation_feedback_threshold:
+                step = -10
+            if diff <= self.animation_feedback_threshold:
+                step = 10
+            LOGGER.debug(
+                f'Compare animation feedback (avg), {step}, {diff}, {self.animation_feedback_threshold}')
+
+        score = sa.safe_update_score(step)
+
+        LOGGER.debug(f'Update score to: {score}, step: {step}')
+
+        return score
+
     def update_animation_img(self, flag_10s: bool, pairs=None):
         # Enter into the animation mode
         self.signal_monitor_widget.animation_mode()
 
         if flag_10s:
             self._resize_animation_img()
-            score = np.random.randint(1, 99)
+
+            if pairs:
+                score = self._compare_animation_feedback(pairs[-1])
+            else:
+                score = sa.score
+
+            # Random assign score
+            # score = np.random.randint(1, 99)
+
             # sa.mk_frames(score)
             Thread(target=sa.mk_frames, args=(score, ), daemon=True).start()
 
@@ -1509,14 +1610,18 @@ class MyWidget(QtWidgets.QMainWindow):
             for p in pairs
         ]
 
+        # The buffer_delay's row is:
+        # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestampe)
+        # This uses the columns for both avg. (0|1), std. (2|3) values, and timestamp (4)
+        # The output pairs_delay's row is (avg, std, timestamp)
         pairs_delay = [
-            p[2:]
+            (p[1], p[3], p[4])
             if any(
                 p[-1] + self.delay_seconds > fb['start'] and p[-1] +
                 self.delay_seconds < fb['stop']
                 for fb in self.fake_blocks
             )
-            else p
+            else (p[0], p[2], p[4])
             for p in pairs_delay
         ]
 
@@ -1529,14 +1634,16 @@ class MyWidget(QtWidgets.QMainWindow):
                 self.next_10s += self.next_10s_step
                 flag_10s = True
 
-            self.update_animation_img(flag_10s, pairs)
+            self.update_animation_img(flag_10s, pairs_delay)
             return
 
         # Enter the curve mode for the monitor
         self.signal_monitor_widget.enter_curve_mode()
 
         if self.display_mode == 'Delayed':
-            self.update_curve13(pairs, t0, t1, block_name)
+            # The expand_t setup is to make sure the delayed curve is kept on the center.
+            self.update_curve13(pairs, t0, t1, block_name,
+                                expand_t=self.window_length_seconds-self.delay_seconds*2)
 
             if block_name != 'Empty':
                 self.update_curve2(pairs_delay)
