@@ -18,6 +18,7 @@ Functions:
 
 # %% ---- 2023-09-17 ------------------------
 # Requirements and constants
+import sys
 from pathlib import Path
 from datetime import datetime
 from omegaconf import OmegaConf
@@ -28,6 +29,7 @@ from loguru import logger as LOGGER
 # Function and class
 
 root_path = Path(__file__).parent.parent
+root_path = Path(sys.argv[0]).parent
 
 # %% ---- 2023-09-17 ------------------------
 # conf

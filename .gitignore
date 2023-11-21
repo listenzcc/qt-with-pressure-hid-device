@@ -2,4 +2,7 @@ log
 resource/hidapi-win.zip
 Data
 
-*/__pycache__
+__pycache__
+dist
+*.exe
+build
