@@ -1,5 +1,5 @@
 """
-File: list_devices.py
+File: test_device.py
 Author: Chuncheng Zhang
 Date: 2023-11-28
 Copyright & Email: chuncheng.zhang@ia.ac.cn
@@ -35,22 +35,21 @@ for device in hid_devices:
     if device['product_string'] == 'HIDtoUART example':
         select = device
 
-print(select)
-
+print('-' * 80)
+print(f'Found pressure device: {select}')
+print('Reading a data for example:')
+device = hid.device()
+device.open_path(select['path'])
+print(device.read(16))
+device.close()
+print('Read a data.')
 
 # %% ---- 2023-11-28 ------------------------
 # Pending
-inspect(hid, all=True)
 
 # %% ---- 2023-11-28 ------------------------
 # Pending
 
 # %%
-handle = hid.device()
-handle.open_path(select['path'])
-
-print(handle.read(16))
-
-handle.close()
 
 # %%

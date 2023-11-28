@@ -42,12 +42,7 @@ if __name__ == '__main__':
 
     target_device = TargetDevice()
 
-    real_time_hid_reader = RealTimeHidReader(device=target_device.device)
-    # real_time_hid_reader.start()
-
-    # time.sleep(10)
-    # real_time_hid_reader.stop()
-    # input('Press enter to escape.')
+    real_time_hid_reader = RealTimeHidReader(device=target_device)
 
     app = QtWidgets.QApplication([])
 
@@ -64,21 +59,7 @@ if __name__ == '__main__':
 
     widget = MyWidget(app)
     widget.restart_reader(real_time_hid_reader)
-    # widget.resize(800, 600)
     widget.show()
-
-    # n = int(widget.window_length_seconds * real_time_hid_reader.sample_rate)
-    # nd = int(real_time_hid_reader.sample_rate *
-    #          (widget.window_length_seconds - real_time_hid_reader.delay_seconds))
-
-    # def update():
-    #     pairs = real_time_hid_reader.peek(n)
-    #     pairs_delay = real_time_hid_reader.peek(nd, peek_delay=True)
-    #     widget.update_graph(pairs, pairs_delay)
-
-    # timer = QtCore.QTimer()
-    # timer.timeout.connect(update)
-    # timer.start()
 
     def exec():
         callback = app.exec()

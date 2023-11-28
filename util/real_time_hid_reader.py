@@ -23,6 +23,7 @@ import json
 import time
 import random
 import threading
+import contextlib
 import opensimplex
 
 import numpy as np
@@ -73,8 +74,8 @@ class TargetDevice(object):
             hid_devices = hid.enumerate()
             device_info = [e for e in hid_devices
                            if e['product_string'] == self.product_string][0]
-            device = hid.Device(path=device_info['path'])
-            LOGGER.debug(f'Detected device: {device}')
+            device = hid.device()
+            LOGGER.debug(f'Detected device: {device_info}')
         except Exception as err:
             LOGGER.error(f'Failed to detect the product, {err}')
             device_info = dict(
@@ -85,6 +86,22 @@ class TargetDevice(object):
         self.device = device
 
         return device, device_info
+
+    @contextlib.contextmanager
+    def open_path(self):
+        path = self.device_info['path']
+        try:
+            if self.device is None:
+                yield None
+
+            self.device.open_path(path)
+            LOGGER.debug(f'Opened path: {path}')
+            yield self.device
+
+        finally:
+            if self.device is not None:
+                self.device.close()
+                LOGGER.debug(f'Closed path: {path}')
 
 
 class FakePressure(object):
@@ -230,62 +247,66 @@ class RealTimeHidReader(object):
 
         self.n = 0
 
-        device = self.device
-        valid_device_flag = device is not None
+        # device = self.device
+        with self.device.open_path() as device:
+            valid_device_flag = device is not None
 
-        LOGGER.debug('Starts the reading loop')
+            if not valid_device_flag:
+                LOGGER.warning('Invalid device')
 
-        tic = time.time()
-        while self.running:
+            LOGGER.debug('Starts the reading loop')
+
+            tic = time.time()
+            while self.running:
+                t = time.time()
+
+                if t < (tic + self.n * self.ts):
+                    time.sleep(0.001)
+                    continue
+
+                if valid_device_flag:
+                    # ! Case: The device is valid.
+                    # Read real time pressure value and convert it
+                    bytes16 = device.read(16)
+                    raw_value = digit2int(bytes16)
+                    value = self.number2pressure(raw_value)
+                elif self.use_simplex_noise_flag:
+                    # ! Case: The device is invalid, but we use the simplex noise.
+                    # Debug usage when device is known to be invalid,
+                    # use the opensimplex noise instead of real pressure
+                    raw_value = (opensimplex.noise2(
+                        x=10, y=t * 0.2)) * 2 * 1000 + 44064 + (46112 - 44064) * 2.5  # 200g
+                    value = self.number2pressure(raw_value)
+                else:
+                    # ! Case: Otherwise, use -1, -1.
+                    # Double -1 refers the device is invalid
+                    raw_value = -1
+                    value = -1
+
+                # The 1st and 2nd elements are used as the fake pressure value
+                fake = self.fake_pressure.get()
+
+                # The data is the array of
+                # ! (pressure_value, digital_value, fake_pressure_value, fake_digital_value,seconds passed from the start)
+                self.buffer.append((value, raw_value, fake[0], fake[1], t-tic))
+
+                # The buffer grows by 1
+                self.n += 1
+
+                # The buffer_delay's row is:
+                # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestampe)
+                if self.n > self.delay_pnts:
+                    pairs = self.peek(self.delay_pnts)
+                    values = [(e[0], e[2]) for e in pairs]
+                    avg = tuple(np.mean(values, axis=0))
+                    std = tuple(np.std(values, axis=0))
+                    timestamp = t - tic - self.delay_seconds
+                    # self.buffer_delay.append((avg, std, timestamp))
+                    self.buffer_delay.append(avg+std+(timestamp,))
+
             t = time.time()
-
-            if t < (tic + self.n * self.ts):
-                time.sleep(0.001)
-                continue
-
-            if valid_device_flag:
-                # ! Case: The device is valid.
-                # Read real time pressure value and convert it
-                bytes16 = device.read(16, timeout=100)
-                raw_value = digit2int(bytes16)
-                value = self.number2pressure(raw_value)
-            elif self.use_simplex_noise_flag:
-                # ! Case: The device is invalid, but we use the simplex noise.
-                # Debug usage when device is known to be invalid,
-                # use the opensimplex noise instead of real pressure
-                raw_value = (opensimplex.noise2(
-                    x=10, y=t * 0.2)) * 2 * 1000 + 44064 + (46112 - 44064) * 2.5  # 200g
-                value = self.number2pressure(raw_value)
-            else:
-                # ! Case: Otherwise, use -1, -1.
-                # Double -1 refers the device is invalid
-                raw_value = -1
-                value = -1
-
-            # The 1st and 2nd elements are used as the fake pressure value
-            fake = self.fake_pressure.get()
-
-            # The data is the array of
-            # ! (pressure_value, digital_value, fake_pressure_value, fake_digital_value,seconds passed from the start)
-            self.buffer.append((value, raw_value, fake[0], fake[1], t-tic))
-
-            # The buffer grows by 1
-            self.n += 1
-
-            # The buffer_delay's row is:
-            # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestampe)
-            if self.n > self.delay_pnts:
-                pairs = self.peek(self.delay_pnts)
-                values = [(e[0], e[2]) for e in pairs]
-                avg = tuple(np.mean(values, axis=0))
-                std = tuple(np.std(values, axis=0))
-                timestamp = t - tic - self.delay_seconds
-                # self.buffer_delay.append((avg, std, timestamp))
-                self.buffer_delay.append(avg+std+(timestamp,))
-
-        t = time.time()
-        LOGGER.debug(
-            f'Stopped the reading loop on {t}, lasting {t - tic} seconds.')
+            LOGGER.debug(
+                f'Stopped the reading loop on {t}, lasting {t - tic} seconds.')
 
         return
 

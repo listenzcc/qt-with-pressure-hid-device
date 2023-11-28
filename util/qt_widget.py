@@ -616,7 +616,7 @@ class MyWidget(QtWidgets.QMainWindow):
             # not received any valid data,
             # something is wrong.
             if len(pairs) == 0:
-                LOGGER.error(f'Failed receive valid data')
+                # LOGGER.error(f'Failed receive valid data')
                 return
 
             self.update_graph(pairs, pairs_delay)
@@ -678,7 +678,7 @@ class MyWidget(QtWidgets.QMainWindow):
         )
 
         self.device_reader.stop()
-        # time.sleep(1)
+        time.sleep(0.1)
         self.device_reader.start()
 
         # Reset the next_10s timer
