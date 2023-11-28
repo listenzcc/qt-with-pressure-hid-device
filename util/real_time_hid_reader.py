@@ -89,14 +89,15 @@ class TargetDevice(object):
 
     @contextlib.contextmanager
     def open_path(self):
-        path = self.device_info['path']
+        path = 'No device'
         try:
-            if self.device is None:
+            path = self.device_info.get('path', None)
+            if self.device is None or path is None:
                 yield None
-
-            self.device.open_path(path)
-            LOGGER.debug(f'Opened path: {path}')
-            yield self.device
+            else:
+                self.device.open_path(path)
+                LOGGER.debug(f'Opened path: {path}')
+                yield self.device
 
         finally:
             if self.device is not None:
