@@ -74,6 +74,7 @@ class TargetDevice(object):
             device_info = [e for e in hid_devices
                            if e['product_string'] == self.product_string][0]
             device = hid.Device(path=device_info['path'])
+            LOGGER.debug(f'Detected device: {device}')
         except Exception as err:
             LOGGER.error(f'Failed to detect the product, {err}')
             device_info = dict(
