@@ -62,7 +62,7 @@ if __name__ == '__main__':
     widget.show()
 
     def exec():
-        callback = app.exec()
+        callback = app.exec_()
         real_time_hid_reader.stop()
         time.sleep(1)
         return callback

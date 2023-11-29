@@ -29,9 +29,9 @@ from pathlib import Path
 from datetime import datetime
 from threading import Thread
 
-from PySide6 import QtCore, QtWidgets
-from PySide6.QtGui import QFont
-from PySide6.QtCore import QCoreApplication
+from PySide2 import QtCore, QtWidgets
+from PySide2.QtGui import QFont
+from PySide2.QtCore import QCoreApplication
 
 from . import LOGGER, CONF, root_path
 from .load_protocols import MyProtocol
