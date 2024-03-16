@@ -1,6 +1,6 @@
 {
-  "name": "Longer debug blocks",
-  "maker": "user",
+  "name": "调试专用-2",
+  "maker": "Debug",
   "_buffer": [
     ["Real", 10],
     ["Fake", 10],

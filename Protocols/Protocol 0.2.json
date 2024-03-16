@@ -1,6 +1,6 @@
 {
-  "name": "Interactive blocks",
-  "maker": "system",
+  "name": "真伪反馈交替60s",
+  "maker": "System",
   "_buffer": [
     ["Real", 60],
     ["Fake", 60],

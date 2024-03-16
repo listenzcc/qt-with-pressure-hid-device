@@ -24,7 +24,7 @@ import threading
 
 from util import LOGGER, CONF, root_path
 from util.real_time_hid_reader import TargetDevice, RealTimeHidReader
-from util.qt_widget import QtWidgets, MyWidget, QtCore, app
+from util.qt_widget import QtWidgets, UserInterfaceWidget, QtCore, app
 
 # from util.qt_widget import QLineSeries, QPointF
 # from rich import inspect
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     else:
         LOGGER.error(f"Failed to load translator: {lang}: {path}")
 
-    widget = MyWidget(app)
+    widget = UserInterfaceWidget(app)
     widget.restart_reader(real_time_hid_reader)
     widget.show()
 
