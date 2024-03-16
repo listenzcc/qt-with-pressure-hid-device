@@ -1,5 +1,8 @@
 {
-  "name": "Single block",
-  "maker": "system",
-  "_buffer": [["Real", 60]]
+  "name": "调试专用-1",
+  "maker": "Debug",
+  "_buffer": [
+    ["Real", 10],
+    ["Fake", 10]
+  ]
 }

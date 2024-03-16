@@ -1,0 +1,10 @@
+{
+  "name": "真伪反馈交替60s（含休息）",
+  "maker": "System",
+  "_buffer": [
+    ["Real", 60],
+    ["Hide", 10],
+    ["Fake", 60],
+    ["Hide", 10]
+  ]
+}

@@ -14,5 +14,6 @@ experiment:
   remainder:
     Real: T
     Fake: F
+    Hide: H
     NA: --
 

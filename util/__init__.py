@@ -32,7 +32,9 @@ root_path = Path(__file__).parent.parent
 root_path = Path(sys.argv[0]).parent
 
 # %% ---- 2023-09-17 ------------------------
-# conf
+# Setup basic configure
+
+# The configuration file is in 'conf/conf.yaml'
 conf_path = root_path.joinpath('conf/conf.yaml')
 conf_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -53,9 +55,10 @@ setup = dict(
     ),
     experiment=dict(
         remainder=dict(
-            Real='T',
-            Fake='F',
-            NA='--'
+            Real='T',  # Feedback with the real pressure value
+            Fake='F',  # Feedback with the fake (pseudo) pressure value
+            Hide='H',  # Feedback is hided
+            NA='--'  # Not available
         )
     )
 )
@@ -67,11 +70,8 @@ print(OmegaConf.to_yaml(CONF), file=open(conf_path, 'w'))
 
 # %% ---- 2023-09-17 ------------------------
 # logging
-logger_path = root_path.joinpath(
-    f'log/{datetime.strftime(datetime.now(), "%Y-%m-%d")}.log')
-logger_path.parent.mkdir(parents=True, exist_ok=True)
 
-LOGGER.add(logger_path)
+LOGGER.add('log/pressure-feedback.log', rotation='1 MB')
 LOGGER.info(f'Project starts with: {CONF}')
 
 
