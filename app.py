@@ -24,7 +24,7 @@ import threading
 
 from util import LOGGER, CONF, root_path
 from util.real_time_hid_reader import TargetDevice, RealTimeHidReader
-from util.qt_widget import QtWidgets, MyWidget, QtCore
+from util.qt_widget import QtWidgets, MyWidget, QtCore, app
 
 # from util.qt_widget import QLineSeries, QPointF
 # from rich import inspect
@@ -38,24 +38,23 @@ from util.qt_widget import QtWidgets, MyWidget, QtCore
 # %% ---- 2023-09-17 ------------------------
 # Play ground
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     target_device = TargetDevice()
 
     real_time_hid_reader = RealTimeHidReader(device=target_device)
 
-    app = QtWidgets.QApplication([])
+    # app = QtWidgets.QApplication([])
 
     translator = QtCore.QTranslator(app)
 
-    lang = 'zh_CN'
+    lang = "zh_CN"
     # lang = 'en_US'
-    path = root_path.joinpath(f'translate/{lang}')
+    path = root_path.joinpath(f"translate/{lang}")
     if translator.load(path.as_posix()):
         app.installTranslator(translator)
-        LOGGER.debug(f'Translator is loaded: {lang}: {path}')
+        LOGGER.debug(f"Translator is loaded: {lang}: {path}")
     else:
-        LOGGER.error(f'Failed to load translator: {lang}: {path}')
+        LOGGER.error(f"Failed to load translator: {lang}: {path}")
 
     widget = MyWidget(app)
     widget.restart_reader(real_time_hid_reader)

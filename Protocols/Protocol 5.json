@@ -1,10 +1,10 @@
 {
-  "name": "Longer debug blocks",
+  "name": "my design",
   "maker": "user",
   "_buffer": [
-    ["Real", 10],
+    ["Real", 60],
     ["Fake", 10],
-    ["Real", 10],
+    ["Real", 60],
     ["Fake", 10]
   ]
 }

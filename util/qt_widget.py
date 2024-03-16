@@ -23,12 +23,13 @@ import time
 import random
 import threading
 import numpy as np
-import pyqtgraph as pg
 
 from pathlib import Path
 from datetime import datetime
 from threading import Thread
 
+from PySide2.QtWidgets import QApplication
+import pyqtgraph as pg
 from PySide2 import QtCore, QtWidgets
 from PySide2.QtGui import QFont
 from PySide2.QtCore import QCoreApplication
@@ -45,11 +46,13 @@ sa = ScoreAnimation()
 sa.reset()
 sa.mk_frames()
 
+app = QtWidgets.QApplication([])  # noqa
+
 # %% ---- 2023-09-17 ------------------------
 # Function and class
 
 
-def tr(key: str, context: str = 'default', **kwargs) -> str:
+def tr(key: str, context: str = "default", **kwargs) -> str:
     """Translate key with context
 
     Args:
@@ -60,7 +63,7 @@ def tr(key: str, context: str = 'default', **kwargs) -> str:
         str: The translation.
     """
     output = QCoreApplication.translate(context, key, **kwargs)
-    LOGGER.debug(f'Translated {key}({context}) = {output}')
+    LOGGER.debug(f"Translated {key}({context}) = {output}")
     return output
 
 
@@ -69,19 +72,19 @@ class SignalMonitorWidget(pg.PlotWidget):
     The pyqtgraph widget for high speed display
     """
 
-    pg.setConfigOption('background', 'w')
-    pg.setConfigOption('foreground', 'k')
-    pg.setConfigOption('antialias', True)
-    title = 'Main graph'
-    max_value = CONF['display']['max_value']
-    min_value = CONF['display']['min_value']
-    ref_value = CONF['display']['ref_value']
+    pg.setConfigOption("background", "w")
+    pg.setConfigOption("foreground", "k")
+    pg.setConfigOption("antialias", True)
+    title = "Main graph"
+    max_value = CONF["display"]["max_value"]
+    min_value = CONF["display"]["min_value"]
+    ref_value = CONF["display"]["ref_value"]
 
     def __init__(self):
         super().__init__()
         self.set_config()
         self.place_components()
-        LOGGER.debug(f'Initialized {self.__class__}')
+        LOGGER.debug(f"Initialized {self.__class__}")
 
     def set_config(self):
         """
@@ -122,8 +125,8 @@ class SignalMonitorWidget(pg.PlotWidget):
         cy = (self.max_value + self.min_value) / 2
         w = ref_value
         h = ref_value
-        x = cx - w/2
-        y = cy - h/2
+        x = cx - w / 2
+        y = cy - h / 2
 
         self.ref_value = ref_value
 
@@ -158,14 +161,14 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         if value > self.ref_value:
             # The pressure is large, pitch the circle
-            w = self.ref_value * (1+r)
+            w = self.ref_value * (1 + r)
             h = 2 * self.ref_value - w
         else:
-            h = self.ref_value * (1+r)
+            h = self.ref_value * (1 + r)
             w = 2 * self.ref_value - h
 
-        x = cx - w/2
-        y = cy - h/2
+        x = cx - w / 2
+        y = cy - h / 2
 
         self.ellipse5.setRect(x, y, w, h)
 
@@ -195,28 +198,26 @@ class SignalMonitorWidget(pg.PlotWidget):
         # --------------------------------------------------------------------------------
         # The curves of the pressure values (curve1 and curve2(delay)),
         # and the reference pressure value (curve3)
-        self.pen1 = pg.mkPen(color='blue')
+        self.pen1 = pg.mkPen(color="blue")
         self.curve1 = self.plot([], [], pen=self.pen1)
 
-        self.pen2 = pg.mkPen(color='red')
+        self.pen2 = pg.mkPen(color="red")
         self.curve2 = self.plot([], [], pen=self.pen2)
 
-        self.pen3 = pg.mkPen(color='green')
+        self.pen3 = pg.mkPen(color="green")
         self.curve3 = self.plot([], [], pen=self.pen3)
 
         # --------------------------------------------------------------------------------
         # The ellipse of pressure value response,
         # the ellipse4 is the under-pressure circle,
         # the ellipse5 is the reference circle.
-        self.pen4 = pg.mkPen(color='red', width=5)
-        self.ellipse4 = QtWidgets.QGraphicsEllipseItem(
-            1000-250, 1000-250, 500, 500)
+        self.pen4 = pg.mkPen(color="red", width=5)
+        self.ellipse4 = QtWidgets.QGraphicsEllipseItem(1000 - 250, 1000 - 250, 500, 500)
         self.ellipse4.setPen(self.pen4)
         self.addItem(self.ellipse4)
 
-        self.pen5 = pg.mkPen(color='black', width=3)
-        self.ellipse5 = QtWidgets.QGraphicsEllipseItem(
-            1000-250, 1000-250, 500, 500)
+        self.pen5 = pg.mkPen(color="black", width=3)
+        self.ellipse5 = QtWidgets.QGraphicsEllipseItem(1000 - 250, 1000 - 250, 500, 500)
         self.ellipse5.setPen(self.pen5)
         self.addItem(self.ellipse5)
 
@@ -238,40 +239,42 @@ class SignalMonitorWidget(pg.PlotWidget):
         # --------------------------------------------------------------------------------
         # The block text on the left-top corner
         legend = self.getPlotItem().addLegend(offset=(10, 10))
-        self.block_text = pg.TextItem('Idle')
+        self.block_text = pg.TextItem("Idle")
         font = QFont()
         font.setPixelSize(40)
         self.block_text.setFont(font)
         self.block_text.setAnchor((0, 0))
         self.block_text.setFlag(
-            self.block_text.GraphicsItemFlag.ItemIgnoresTransformations)
+            self.block_text.GraphicsItemFlag.ItemIgnoresTransformations
+        )
         self.block_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
         # The status text on the right-top corner
-        self.status_text = pg.TextItem('--')
+        self.status_text = pg.TextItem("--")
         font = QFont()
         font.setPixelSize(20)
         self.status_text.setFont(font)
         self.status_text.setAnchor((1, 0))
         self.status_text.setPos(self.width() - 80, 0)
         self.status_text.setFlag(
-            self.status_text.GraphicsItemFlag.ItemIgnoresTransformations)
+            self.status_text.GraphicsItemFlag.ItemIgnoresTransformations
+        )
         self.status_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
         # The current block remainder,
         # it is on the center of the graph
-        self.current_block_remainder_text = pg.TextItem('CBRT')
+        self.current_block_remainder_text = pg.TextItem("CBRT")
         font = QFont()
         font.setPixelSize(40)
         self.current_block_remainder_text.setFont(font)
         self.current_block_remainder_text.setAnchor((0, 0))
-        self.current_block_remainder_text.setColor('red')
-        self.current_block_remainder_text.setPos(
-            self.width()/2, self.height()/2)
+        self.current_block_remainder_text.setColor("red")
+        self.current_block_remainder_text.setPos(self.width() / 2, self.height() / 2)
         self.current_block_remainder_text.setFlag(
-            self.status_text.GraphicsItemFlag.ItemIgnoresTransformations)
+            self.status_text.GraphicsItemFlag.ItemIgnoresTransformations
+        )
         self.current_block_remainder_text.setParentItem(legend)
 
         # --------------------------------------------------------------------------------
@@ -284,7 +287,8 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.curve2.setZValue(3)
 
         LOGGER.debug(
-            f'Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2}).')
+            f"Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2})."
+        )
 
     def on_resized(self):
         """
@@ -299,8 +303,7 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         self.block_text.setAnchor((0, 0))
         self.status_text.setPos(self.width() - 80, 0)
-        self.current_block_remainder_text.setPos(
-            self.width()/2, self.height()/2)
+        self.current_block_remainder_text.setPos(self.width() / 2, self.height() / 2)
 
     def update_curve1(self, pairs):
         """
@@ -354,11 +357,12 @@ class BlockManager(object):
     @parse_blocks(blocks) is the built-in method to startup from the input blocks;
     @consume(t) is the method determine the current block and pop it if it is exceeded.
     """
+
     design = []
 
     def __init__(self, blocks=[]):
         self.design = self.parse_blocks(blocks)
-        LOGGER.debug(f'Initialized {self.__class__}')
+        LOGGER.debug(f"Initialized {self.__class__}")
 
     def parse_blocks(self, blocks: list):
         """Parse the input block design
@@ -372,38 +376,36 @@ class BlockManager(object):
         design = []
 
         if len(blocks) == 0:
-            LOGGER.debug('Parsed empty blocks.')
+            LOGGER.debug("Parsed empty blocks.")
             return design
 
-        design.append(dict(
-            idx=0,
-            name=blocks[0][0],
-            duration=blocks[0][1],
-            start=0,
-            stop=blocks[0][1],
-        ))
+        design.append(
+            dict(
+                idx=0,
+                name=blocks[0][0],
+                duration=blocks[0][1],
+                start=0,
+                stop=blocks[0][1],
+            )
+        )
         stop = blocks[0][1]
         idx = 0
 
         for block in blocks[1:]:
             idx = len(design)
             duration = block[1]
-            start = design[-1]['stop']
+            start = design[-1]["stop"]
             stop = start + duration
 
-            design.append(dict(
-                idx=idx,
-                name=block[0],
-                duration=duration,
-                start=start,
-                stop=stop
-            ))
+            design.append(
+                dict(idx=idx, name=block[0], duration=duration, start=start, stop=stop)
+            )
 
         for d in design:
-            d['total'] = stop
-            d['blocks'] = idx+1
+            d["total"] = stop
+            d["blocks"] = idx + 1
 
-        LOGGER.debug(f'Parsed blocks design: {design}')
+        LOGGER.debug(f"Parsed blocks design: {design}")
 
         return design
 
@@ -436,14 +438,14 @@ class BlockManager(object):
         """
 
         if len(self.design) == 0:
-            return 'No block at all.'
+            return "No block at all."
 
-        if t > self.design[0]['stop']:
+        if t > self.design[0]["stop"]:
             d = self.design.pop(0)
-            LOGGER.debug(f'Consumed block {d}')
+            LOGGER.debug(f"Consumed block {d}")
 
         if len(self.design) == 0:
-            return 'Consumed all the blocks.'
+            return "Consumed all the blocks."
 
         return self.design[0]
 
@@ -461,33 +463,33 @@ class MyWidget(QtWidgets.QMainWindow):
 
     """
 
-    window_length_seconds = CONF['display']['window_length_seconds']
-    delay_seconds = CONF['display']['delay_seconds']
+    window_length_seconds = CONF["display"]["window_length_seconds"]
+    delay_seconds = CONF["display"]["delay_seconds"]
 
-    ref_value = CONF['display']['ref_value']
-    max_value = CONF['display']['max_value']
-    min_value = CONF['display']['min_value']
-    display_ref_flag = CONF['display']['display_ref_flag']
+    ref_value = CONF["display"]["ref_value"]
+    max_value = CONF["display"]["max_value"]
+    min_value = CONF["display"]["min_value"]
+    display_ref_flag = CONF["display"]["display_ref_flag"]
 
-    remainder_dict = CONF['experiment']['remainder']
+    remainder_dict = CONF["experiment"]["remainder"]
 
-    display_mode = 'Realtime'
-    display_modes = ['Realtime', 'Delayed', 'Circle fit', 'Animation fit']
+    display_mode = "Realtime"
+    display_modes = ["Realtime", "Delayed", "Circle fit", "Animation fit"]
 
-    window_title = 'Pressure feedback system by Dr. Zhang'
+    window_title = "Pressure feedback system by Dr. Zhang"
 
     device_reader = None
     timer = None
     block_manager = BlockManager()
     fake_blocks = []
     my_protocol = MyProtocol()
-    data_folder_path = root_path.joinpath('Data')
+    data_folder_path = root_path.joinpath("Data")
 
     next_10s_step = 3
     next_10s = next_10s_step
 
-    animation_feedback_type = 'Avg.'
-    animation_feedback_types = ['Avg.', 'Std.']
+    animation_feedback_type = "Avg."
+    animation_feedback_types = ["Avg.", "Std."]
     animation_feedback_threshold = 10
 
     def __init__(self, app, translator=None):
@@ -502,14 +504,19 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # --------------------------------------------------------------------------------
         # Hello world slogan and click method
-        self.hello = ["Hello world", "Hallo Welt", "你好",
-                      "Hei maailma", "Hola Mundo", "Привет мир"]
+        self.hello = [
+            "Hello world",
+            "Hallo Welt",
+            "你好",
+            "Hei maailma",
+            "Hola Mundo",
+            "Привет мир",
+        ]
 
         self.start_button = QtWidgets.QPushButton(tr("Start"))
         self.terminate_button = QtWidgets.QPushButton(tr("Terminate"))
 
-        self.text = QtWidgets.QLabel("Hello World",
-                                     alignment=QtCore.Qt.AlignCenter)
+        self.text = QtWidgets.QLabel("Hello World", alignment=QtCore.Qt.AlignCenter)
 
         self.start_button.clicked.connect(self.start_block_design)
         self.terminate_button.clicked.connect(self.terminate)
@@ -575,7 +582,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
         self.signal_monitor_widget.on_resized()
 
-        LOGGER.debug(f'Main window resized to size {event}')
+        LOGGER.debug(f"Main window resized to size {event}")
 
     def restart_reader(self, reader: RealTimeHidReader):
         """
@@ -589,7 +596,8 @@ class MyWidget(QtWidgets.QMainWindow):
             pairs = self.device_reader.stop()
             time.sleep(0.1)
             LOGGER.warning(
-                f'Closed existing device reader, discharging {len(pairs)} pnts data')
+                f"Closed existing device reader, discharging {len(pairs)} pnts data"
+            )
 
         # Reset the next_10s timer
         self.next_10s = self.next_10s_step
@@ -600,18 +608,19 @@ class MyWidget(QtWidgets.QMainWindow):
 
         reader.start()
 
-        LOGGER.debug(f'Linked with device reader: {reader}')
+        LOGGER.debug(f"Linked with device reader: {reader}")
 
         self.setWindowTitle(tr(self.window_title))
 
         if self.timer is not None:
             self.timer.stop()
-            LOGGER.warning(f'Stopped existing timer {self.timer}')
+            LOGGER.warning(f"Stopped existing timer {self.timer}")
 
         def update():
             pairs = reader.peek_by_seconds(self.window_length_seconds)
             pairs_delay = reader.peek_by_seconds(
-                self.window_length_seconds, peek_delay=True)
+                self.window_length_seconds, peek_delay=True
+            )
 
             # not received any valid data,
             # something is wrong.
@@ -630,18 +639,17 @@ class MyWidget(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def terminate(self):
-        """Terminate the current block design experiment.
-        """
+        """Terminate the current block design experiment."""
         self.block_manager = BlockManager()
 
-        self.fake_blocks = [
-            e for e in self.block_manager.design if e['name'] == 'Fake']
-        LOGGER.debug(f'Found fake blocks {self.fake_blocks}')
+        self.fake_blocks = [e for e in self.block_manager.design if e["name"] == "Fake"]
+        LOGGER.debug(f"Found fake blocks {self.fake_blocks}")
 
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
         LOGGER.debug(
-            'Terminated block designed experiment, and the start_button disable status is released.')
+            "Terminated block designed experiment, and the start_button disable status is released."
+        )
 
     @QtCore.Slot()
     def start_block_design(self):
@@ -658,23 +666,23 @@ class MyWidget(QtWidgets.QMainWindow):
         self.start_button.setDisabled(True)
         self.terminate_button.setDisabled(False)
 
-        self.block_manager = BlockManager(self.experiment_inputs['_buffer'])
+        self.block_manager = BlockManager(self.experiment_inputs["_buffer"])
 
-        self.fake_blocks = [
-            e for e in self.block_manager.design if e['name'] == 'Fake']
-        LOGGER.debug(f'Found fake blocks {self.fake_blocks}')
+        self.fake_blocks = [e for e in self.block_manager.design if e["name"] == "Fake"]
+        LOGGER.debug(f"Found fake blocks {self.fake_blocks}")
 
         if len(self.block_manager.design) == 0:
             self.start_button.setDisabled(False)
             self.terminate_button.setDisabled(True)
             LOGGER.warning(
-                'Tried to start the block designed experiment, but no design was found.')
+                "Tried to start the block designed experiment, but no design was found."
+            )
             return
 
         # Snapshot the current setup.
         self.setup_snapshot = dict(
-            subject_info=self.subject_inputs['_summary'].toPlainText(),
-            experiment_info=self.experiment_inputs['_buffer']
+            subject_info=self.subject_inputs["_summary"].toPlainText(),
+            experiment_info=self.experiment_inputs["_buffer"],
         )
 
         self.device_reader.stop()
@@ -692,20 +700,20 @@ class MyWidget(QtWidgets.QMainWindow):
         """
         data = self.device_reader.stop()
 
-        subject_info = self.setup_snapshot['subject_info']
-        experiment_info = self.setup_snapshot['experiment_info']
+        subject_info = self.setup_snapshot["subject_info"]
+        experiment_info = self.setup_snapshot["experiment_info"]
 
         folder = self.data_folder_path.joinpath(
-            '{}'.format(datetime.strftime(datetime.now(), '%Y-%m-%d-%H-%M-%S')))
+            "{}".format(datetime.strftime(datetime.now(), "%Y-%m-%d-%H-%M-%S"))
+        )
 
         folder.mkdir(exist_ok=True, parents=True)
 
-        json.dump(data, open(folder.joinpath('data.json'), 'w'))
-        json.dump(subject_info, open(folder.joinpath('subject.json'), 'w'))
-        json.dump(experiment_info, open(
-            folder.joinpath('experiment.json'), 'w'))
+        json.dump(data, open(folder.joinpath("data.json"), "w"))
+        json.dump(subject_info, open(folder.joinpath("subject.json"), "w"))
+        json.dump(experiment_info, open(folder.joinpath("experiment.json"), "w"))
 
-        LOGGER.debug(f'Saved data into {folder}')
+        LOGGER.debug(f"Saved data into {folder}")
 
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
@@ -723,141 +731,143 @@ class MyWidget(QtWidgets.QMainWindow):
         Returns:
             dict: The necessary widgets of inputs
         """
+
         def _tr(s):
-            return tr(s, 'display setup session')
+            return tr(s, "display setup session")
 
         inputs = dict(
-            line1_color=QtWidgets.QPushButton('    '),
+            line1_color=QtWidgets.QPushButton("    "),
             line1_width=QtWidgets.QSpinBox(),
-            line2_color=QtWidgets.QPushButton('    '),
+            line2_color=QtWidgets.QPushButton("    "),
             line2_width=QtWidgets.QSpinBox(),
             line2_delay=QtWidgets.QSpinBox(),
-            line3_color=QtWidgets.QPushButton('    '),
+            line3_color=QtWidgets.QPushButton("    "),
             line3_width=QtWidgets.QSpinBox(),
             line3_ref_value=QtWidgets.QDial(),
-            zone3=QtWidgets.QGroupBox(_tr('Ref. value')),
+            zone3=QtWidgets.QGroupBox(_tr("Ref. value")),
             animation_value_type=QtWidgets.QComboBox(),
             animation_value_threshold=QtWidgets.QDial(),
             display_mode=QtWidgets.QComboBox(),
-            button_0g=QtWidgets.QPushButton(_tr('Correction 0g')),
-            button_200g=QtWidgets.QPushButton(_tr('Correction 200g')),
+            button_0g=QtWidgets.QPushButton(_tr("Correction 0g")),
+            button_200g=QtWidgets.QPushButton(_tr("Correction 200g")),
         )
 
         def pen2hex(pen):
             rgb = list(pen.color().toTuple())[:3]
-            string = '#' + ''.join([hex(e).replace('x', '')[-2:] for e in rgb])
+            string = "#" + "".join([hex(e).replace("x", "")[-2:] for e in rgb])
             return string
 
         # --------------------------------------------------------------------------------
-        groupbox = QtWidgets.QGroupBox(_tr('Display setup'))
+        groupbox = QtWidgets.QGroupBox(_tr("Display setup"))
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
         main_box_layout = QtWidgets.QVBoxLayout()
         groupbox.setLayout(main_box_layout)
 
         # --------------------------------------------------------------------------------
-        inputs['display_mode'].addItems(self.display_modes)
-        inputs['display_mode'].setCurrentText(self.display_mode)
+        inputs["display_mode"].addItems(self.display_modes)
+        inputs["display_mode"].setCurrentText(self.display_mode)
 
-        main_box_layout.addWidget(inputs['display_mode'])
+        main_box_layout.addWidget(inputs["display_mode"])
 
         # --------------------------------------------------------------------------------
-        zone1 = QtWidgets.QGroupBox(_tr('Curve (realtime)'))
+        zone1 = QtWidgets.QGroupBox(_tr("Curve (realtime)"))
         main_box_layout.addWidget(zone1)
         vbox1 = QtWidgets.QVBoxLayout()
         zone1.setLayout(vbox1)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox1.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Color')))
-        hbox.addWidget(inputs['line1_color'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Color")))
+        hbox.addWidget(inputs["line1_color"])
 
         hbox = QtWidgets.QHBoxLayout()
         vbox1.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Width')))
-        hbox.addWidget(inputs['line1_width'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Width")))
+        hbox.addWidget(inputs["line1_width"])
 
-        inputs['line1_width'].setValue(2)
-        inputs['line1_width'].setMinimum(1)
-        inputs['line1_width'].setMaximum(10)
+        inputs["line1_width"].setValue(2)
+        inputs["line1_width"].setMinimum(1)
+        inputs["line1_width"].setMaximum(10)
 
         # --------------------------------------------------------------------------------
-        zone2 = QtWidgets.QGroupBox(_tr('Curve (delay)'))
+        zone2 = QtWidgets.QGroupBox(_tr("Curve (delay)"))
         main_box_layout.addWidget(zone2)
         vbox2 = QtWidgets.QVBoxLayout()
         zone2.setLayout(vbox2)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox2.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Delay (seconds)')))
-        hbox.addWidget(inputs['line2_delay'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Delay (seconds)")))
+        hbox.addWidget(inputs["line2_delay"])
 
         hbox = QtWidgets.QHBoxLayout()
         vbox2.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Color')))
-        hbox.addWidget(inputs['line2_color'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Color")))
+        hbox.addWidget(inputs["line2_color"])
 
         hbox = QtWidgets.QHBoxLayout()
         vbox2.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Width')))
-        hbox.addWidget(inputs['line2_width'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Width")))
+        hbox.addWidget(inputs["line2_width"])
 
-        inputs['line2_width'].setValue(2)
-        inputs['line2_width'].setMinimum(1)
-        inputs['line2_width'].setMaximum(10)
+        inputs["line2_width"].setValue(2)
+        inputs["line2_width"].setMinimum(1)
+        inputs["line2_width"].setMaximum(10)
 
         # --------------------------------------------------------------------------------
-        inputs['line2_delay'].setValue(10)
-        inputs['line2_delay'].setMinimum(1)
-        inputs['line2_delay'].setMaximum(10)
+        inputs["line2_delay"].setValue(10)
+        inputs["line2_delay"].setMinimum(1)
+        inputs["line2_delay"].setMaximum(10)
 
         def _change_delay(delay):
             self.delay_seconds = delay
             self.device_reader.recompute_delay(delay)
             self.restart_reader(self.device_reader)
 
-        inputs['line2_delay'].valueChanged.connect(_change_delay)
+        inputs["line2_delay"].valueChanged.connect(_change_delay)
 
         # --------------------------------------------------------------------------------
-        zone_animation = QtWidgets.QGroupBox(_tr('Animation opt.'))
+        zone_animation = QtWidgets.QGroupBox(_tr("Animation opt."))
         zone_animation.setCheckable(True)
         main_box_layout.addWidget(zone_animation)
         vbox_animation = QtWidgets.QVBoxLayout()
         zone_animation.setLayout(vbox_animation)
 
-        animation_value_type = inputs['animation_value_type']
+        animation_value_type = inputs["animation_value_type"]
         animation_value_type.addItems(self.animation_feedback_types)
-        vbox_animation.addWidget(QtWidgets.QLabel(_tr('Feedback')))
+        vbox_animation.addWidget(QtWidgets.QLabel(_tr("Feedback")))
         vbox_animation.addWidget(animation_value_type)
 
         def _change_feedback_type(idx):
             value = self.animation_feedback_types[idx]
             self.animation_feedback_type = value
-            LOGGER.debug(f'Changed animation feedback type into: {value}')
+            LOGGER.debug(f"Changed animation feedback type into: {value}")
 
         animation_value_type.currentIndexChanged.connect(_change_feedback_type)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox_animation.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Threshold')))
+        hbox.addWidget(QtWidgets.QLabel(_tr("Threshold")))
         label_threshold = QtWidgets.QLabel()
         hbox.addWidget(label_threshold)
-        vbox_animation.addWidget(inputs['animation_value_threshold'])
+        vbox_animation.addWidget(inputs["animation_value_threshold"])
 
         def _label_threshold_changed(value):
-            label_threshold.setText(f'{value}')
+            label_threshold.setText(f"{value}")
             self.animation_feedback_threshold = value
-            LOGGER.debug(f'Changed animation feedback threshold into: {value}')
+            LOGGER.debug(f"Changed animation feedback threshold into: {value}")
 
-        inputs['animation_value_threshold'].valueChanged.connect(
-            _label_threshold_changed)
+        inputs["animation_value_threshold"].valueChanged.connect(
+            _label_threshold_changed
+        )
 
-        inputs['animation_value_threshold'].setValue(10)
-        inputs['animation_value_threshold'].setMinimum(1)
-        inputs['animation_value_threshold'].setMaximum(200)
+        inputs["animation_value_threshold"].setValue(10)
+        inputs["animation_value_threshold"].setMinimum(1)
+        inputs["animation_value_threshold"].setMaximum(200)
 
         # --------------------------------------------------------------------------------
-        zone3 = inputs['zone3']
+        zone3 = inputs["zone3"]
         zone3.setCheckable(True)
         main_box_layout.addWidget(zone3)
         vbox3 = QtWidgets.QVBoxLayout()
@@ -865,37 +875,37 @@ class MyWidget(QtWidgets.QMainWindow):
 
         hbox = QtWidgets.QHBoxLayout()
         vbox3.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Color')))
-        hbox.addWidget(inputs['line3_color'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Color")))
+        hbox.addWidget(inputs["line3_color"])
 
         hbox = QtWidgets.QHBoxLayout()
         vbox3.addLayout(hbox)
-        hbox.addWidget(QtWidgets.QLabel(_tr('Width')))
-        hbox.addWidget(inputs['line3_width'])
+        hbox.addWidget(QtWidgets.QLabel(_tr("Width")))
+        hbox.addWidget(inputs["line3_width"])
 
         hbox = QtWidgets.QHBoxLayout()
         vbox3.addLayout(hbox)
 
-        hbox.addWidget(QtWidgets.QLabel(_tr('Ref. value')))
-        label = QtWidgets.QLabel('500')
+        hbox.addWidget(QtWidgets.QLabel(_tr("Ref. value")))
+        label = QtWidgets.QLabel("500")
         hbox.addWidget(label)
 
-        vbox3.addWidget(inputs['line3_ref_value'])
+        vbox3.addWidget(inputs["line3_ref_value"])
 
-        inputs['line3_width'].setValue(2)
-        inputs['line3_width'].setMinimum(1)
-        inputs['line3_width'].setMaximum(10)
+        inputs["line3_width"].setValue(2)
+        inputs["line3_width"].setMinimum(1)
+        inputs["line3_width"].setMaximum(10)
 
-        inputs['line3_ref_value'].setValue(500)
-        inputs['line3_ref_value'].setMinimum(1)
-        inputs['line3_ref_value'].setMaximum(2000)
+        inputs["line3_ref_value"].setValue(500)
+        inputs["line3_ref_value"].setMinimum(1)
+        inputs["line3_ref_value"].setMaximum(2000)
 
         def _change_ref_value(v):
             self.ref_value = v
             self.signal_monitor_widget.ellipse4_size_changed(v)
-            label.setText('{}'.format(v))
+            label.setText("{}".format(v))
 
-        inputs['line3_ref_value'].valueChanged.connect(_change_ref_value)
+        inputs["line3_ref_value"].valueChanged.connect(_change_ref_value)
 
         def _check_zone3(b):
             self.display_ref_flag = b
@@ -903,21 +913,21 @@ class MyWidget(QtWidgets.QMainWindow):
         zone3.toggled.connect(_check_zone3)
 
         # --------------------------------------------------------------------------------
-        zone4 = QtWidgets.QGroupBox(_tr('Correction'))
+        zone4 = QtWidgets.QGroupBox(_tr("Correction"))
         zone4.setCheckable(True)
         zone4.setChecked(False)
         main_box_layout.addWidget(zone4)
         vbox4 = QtWidgets.QVBoxLayout()
         zone4.setLayout(vbox4)
 
-        vbox4.addWidget(inputs['button_0g'])
-        vbox4.addWidget(inputs['button_200g'])
+        vbox4.addWidget(inputs["button_0g"])
+        vbox4.addWidget(inputs["button_200g"])
 
         def _write_to_correction(real_g, num):
-            p = root_path.joinpath(f'correction/g{real_g}')
-            with open(p, 'w') as f:
-                f.write(f'{num}')
-            LOGGER.debug(f'Wrote correction {real_g}({num}) to {p}')
+            p = root_path.joinpath(f"correction/g{real_g}")
+            with open(p, "w") as f:
+                f.write(f"{num}")
+            LOGGER.debug(f"Wrote correction {real_g}({num}) to {p}")
 
         def _correction_0g():
             pairs = self.device_reader.peek(100)
@@ -925,8 +935,7 @@ class MyWidget(QtWidgets.QMainWindow):
             n = len(pairs)
 
             if n == 0:
-                LOGGER.debug(
-                    'Failed to correct with the 0 g, since the data is empty')
+                LOGGER.debug("Failed to correct with the 0 g, since the data is empty")
                 return
 
             g0 = int(sum(e[1] for e in pairs) / n)
@@ -934,7 +943,7 @@ class MyWidget(QtWidgets.QMainWindow):
 
             threading.Thread(target=_write_to_correction, args=(0, g0)).start()
 
-            LOGGER.debug(f'Re-correct the g0 to {g0} (with {n} points)')
+            LOGGER.debug(f"Re-correct the g0 to {g0} (with {n} points)")
 
         def _correction_200g():
             pairs = self.device_reader.peek(100)
@@ -943,29 +952,33 @@ class MyWidget(QtWidgets.QMainWindow):
 
             if n == 0:
                 LOGGER.debug(
-                    'Failed to correct with the 200 g, since the data is empty')
+                    "Failed to correct with the 200 g, since the data is empty"
+                )
                 return
 
             g200 = int(sum(e[1] for e in pairs) / n)
             self.device_reader.g200 = g200
 
-            threading.Thread(target=_write_to_correction,
-                             args=(200, g200)).start()
+            threading.Thread(target=_write_to_correction, args=(200, g200)).start()
 
-            LOGGER.debug(f'Re-correct the g200 to {g200} (with {n} points)')
+            LOGGER.debug(f"Re-correct the g200 to {g200} (with {n} points)")
 
-        inputs['button_0g'].clicked.connect(_correction_0g)
-        inputs['button_200g'].clicked.connect(_correction_200g)
+        inputs["button_0g"].clicked.connect(_correction_0g)
+        inputs["button_200g"].clicked.connect(_correction_200g)
 
         # --------------------------------------------------------------------------------
 
         def _fit_color1():
-            inputs['line1_color'].setStyleSheet(
-                'QPushButton {background-color: ' + pen2hex(self.signal_monitor_widget.pen1) + '}')
+            inputs["line1_color"].setStyleSheet(
+                "QPushButton {background-color: "
+                + pen2hex(self.signal_monitor_widget.pen1)
+                + "}"
+            )
 
         def _change_color1():
             qColor = QtWidgets.QColorDialog(self).getColor(
-                self.signal_monitor_widget.pen1.color())
+                self.signal_monitor_widget.pen1.color()
+            )
 
             if not qColor.isValid():
                 return
@@ -973,7 +986,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen1.setColor(qColor)
             _fit_color1()
 
-            LOGGER.debug(f'Set line1 color to: {qColor}')
+            LOGGER.debug(f"Set line1 color to: {qColor}")
 
         def _change_width1(width):
             self.signal_monitor_widget.pen1.setWidth(width)
@@ -981,17 +994,21 @@ class MyWidget(QtWidgets.QMainWindow):
         _fit_color1()
         _change_width1(2)
 
-        inputs['line1_color'].clicked.connect(_change_color1)
-        inputs['line1_width'].valueChanged.connect(_change_width1)
+        inputs["line1_color"].clicked.connect(_change_color1)
+        inputs["line1_width"].valueChanged.connect(_change_width1)
 
         # --------------------------------------------------------------------------------
         def _fit_color2():
-            inputs['line2_color'].setStyleSheet(
-                'QPushButton {background-color: ' + pen2hex(self.signal_monitor_widget.pen2) + '}')
+            inputs["line2_color"].setStyleSheet(
+                "QPushButton {background-color: "
+                + pen2hex(self.signal_monitor_widget.pen2)
+                + "}"
+            )
 
         def _change_color2():
             qColor = QtWidgets.QColorDialog(self).getColor(
-                self.signal_monitor_widget.pen2.color())
+                self.signal_monitor_widget.pen2.color()
+            )
 
             if not qColor.isValid():
                 return
@@ -999,7 +1016,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen2.setColor(qColor)
             _fit_color2()
 
-            LOGGER.debug(f'Set line2 color to: {qColor}')
+            LOGGER.debug(f"Set line2 color to: {qColor}")
 
         def _change_width2(width):
             self.signal_monitor_widget.pen2.setWidth(width)
@@ -1007,17 +1024,21 @@ class MyWidget(QtWidgets.QMainWindow):
         _fit_color2()
         _change_width2(2)
 
-        inputs['line2_color'].clicked.connect(_change_color2)
-        inputs['line2_width'].valueChanged.connect(_change_width2)
+        inputs["line2_color"].clicked.connect(_change_color2)
+        inputs["line2_width"].valueChanged.connect(_change_width2)
 
         # --------------------------------------------------------------------------------
         def _fit_color3():
-            inputs['line3_color'].setStyleSheet(
-                'QPushButton {background-color: ' + pen2hex(self.signal_monitor_widget.pen3) + '}')
+            inputs["line3_color"].setStyleSheet(
+                "QPushButton {background-color: "
+                + pen2hex(self.signal_monitor_widget.pen3)
+                + "}"
+            )
 
         def _change_color3():
             qColor = QtWidgets.QColorDialog(self).getColor(
-                self.signal_monitor_widget.pen3.color())
+                self.signal_monitor_widget.pen3.color()
+            )
 
             if not qColor.isValid():
                 return
@@ -1025,7 +1046,7 @@ class MyWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen3.setColor(qColor)
             _fit_color3()
 
-            LOGGER.debug(f'Set line3 color to: {qColor}')
+            LOGGER.debug(f"Set line3 color to: {qColor}")
 
         def _change_width3(width):
             self.signal_monitor_widget.pen3.setWidth(width)
@@ -1033,8 +1054,8 @@ class MyWidget(QtWidgets.QMainWindow):
         _fit_color3()
         _change_width3(2)
 
-        inputs['line3_color'].clicked.connect(_change_color3)
-        inputs['line3_width'].valueChanged.connect(_change_width3)
+        inputs["line3_color"].clicked.connect(_change_color3)
+        inputs["line3_width"].valueChanged.connect(_change_width3)
 
         # --------------------------------------------------------------------------------
         def _change_display_mode(mode):
@@ -1045,28 +1066,28 @@ class MyWidget(QtWidgets.QMainWindow):
             # zone3: option for reference pressure value
             # zone4: weight correction
 
-            if mode == 'Realtime':
+            if mode == "Realtime":
                 zone1.setVisible(True)
                 zone2.setVisible(False)
                 zone3.setVisible(True)
                 zone4.setVisible(True)
                 zone_animation.setVisible(False)
 
-            if mode == 'Delayed':
+            if mode == "Delayed":
                 zone1.setVisible(True)
                 zone2.setVisible(True)
                 zone3.setVisible(True)
                 zone4.setVisible(True)
                 zone_animation.setVisible(False)
 
-            if mode == 'Animation fit':
+            if mode == "Animation fit":
                 zone1.setVisible(False)
                 zone2.setVisible(True)
                 zone3.setVisible(True)
                 zone4.setVisible(False)
                 zone_animation.setVisible(True)
 
-        inputs['display_mode'].currentTextChanged.connect(_change_display_mode)
+        inputs["display_mode"].currentTextChanged.connect(_change_display_mode)
         _change_display_mode(self.display_mode)
 
         return inputs
@@ -1082,76 +1103,70 @@ class MyWidget(QtWidgets.QMainWindow):
         Returns:
             dict: The necessary widgets of inputs
         """
+
         def _tr(s):
-            return tr(s, 'experiment setup session')
+            return tr(s, "experiment setup session")
 
         inputs = dict(
             predefined=QtWidgets.QComboBox(),
             seconds=QtWidgets.QSpinBox(),
-            real=QtWidgets.QPushButton(_tr('Real')),
-            fake=QtWidgets.QPushButton(_tr('Fake')),
-            empty=QtWidgets.QPushButton(
-                _tr('Empty')),
-            repeat=QtWidgets.QPushButton(
-                _tr('Repeat')),
-            clear=QtWidgets.QPushButton(
-                _tr('Clear')),
-            refresh=QtWidgets.QPushButton(
-                _tr('Refresh')),
-            save=QtWidgets.QPushButton(_tr('Save')),
-            load_fake=QtWidgets.QPushButton(_tr('Load fake')),
-            fake_file_info=QtWidgets.QLabel('N.A.'),
+            real=QtWidgets.QPushButton(_tr("Real")),
+            fake=QtWidgets.QPushButton(_tr("Fake")),
+            empty=QtWidgets.QPushButton(_tr("Empty")),
+            repeat=QtWidgets.QPushButton(_tr("Repeat")),
+            clear=QtWidgets.QPushButton(_tr("Clear")),
+            refresh=QtWidgets.QPushButton(_tr("Refresh")),
+            save=QtWidgets.QPushButton(_tr("Save")),
+            load_fake=QtWidgets.QPushButton(_tr("Load fake")),
+            fake_file_info=QtWidgets.QLabel("N.A."),
             _summary=QtWidgets.QTextEdit(),
-            _buffer=[]
+            _buffer=[],
         )
 
         # --------------------------------------------------------------------------------
-        groupbox = QtWidgets.QGroupBox(
-            _tr('Experiment setup'))
+        groupbox = QtWidgets.QGroupBox(_tr("Experiment setup"))
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
         vbox = QtWidgets.QVBoxLayout()
         groupbox.setLayout(vbox)
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(
-            _tr('Predefined protocols')))
-        vbox.addWidget(inputs['predefined'])
+        vbox.addWidget(QtWidgets.QLabel(_tr("Predefined protocols")))
+        vbox.addWidget(inputs["predefined"])
 
         for k, v in self.my_protocol.protocols.items():
             txt = f'{k} | {v.get("name", "")}'
-            inputs['predefined'].addItems([txt])
+            inputs["predefined"].addItems([txt])
 
         def _change_protocol():
-            protocol = inputs['predefined'].currentText()
-            k = protocol.split(' | ')[0]
+            protocol = inputs["predefined"].currentText()
+            k = protocol.split(" | ")[0]
             _clear()
-            inputs['_buffer'] = self.my_protocol.get_buffer(k)
+            inputs["_buffer"] = self.my_protocol.get_buffer(k)
             _update_summary()
 
-        inputs['predefined'].currentTextChanged.connect(_change_protocol)
+        inputs["predefined"].currentTextChanged.connect(_change_protocol)
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(
-            _tr('Block length (seconds)')))
-        vbox.addWidget(inputs['seconds'])
-        inputs['seconds'].setValue(10)
-        inputs['seconds'].setMaximum(3600)
-        inputs['seconds'].setMinimum(1)
+        vbox.addWidget(QtWidgets.QLabel(_tr("Block length (seconds)")))
+        vbox.addWidget(inputs["seconds"])
+        inputs["seconds"].setValue(10)
+        inputs["seconds"].setMaximum(3600)
+        inputs["seconds"].setMinimum(1)
 
         # --------------------------------------------------------------------------------
         widget = QtWidgets.QWidget()
         vbox.addWidget(widget)
         hbox = QtWidgets.QHBoxLayout()
         widget.setLayout(hbox)
-        hbox.addWidget(inputs['real'])
-        hbox.addWidget(inputs['fake'])
+        hbox.addWidget(inputs["real"])
+        hbox.addWidget(inputs["fake"])
         # Disable the empty block
         # hbox.addWidget(inputs['empty'])
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(_tr('Summary')))
-        vbox.addWidget(inputs['_summary'])
+        vbox.addWidget(QtWidgets.QLabel(_tr("Summary")))
+        vbox.addWidget(inputs["_summary"])
 
         # --------------------------------------------------------------------------------
         # The hbox inside the current vbox layout
@@ -1161,24 +1176,25 @@ class MyWidget(QtWidgets.QMainWindow):
         hbox = QtWidgets.QHBoxLayout()
         widget.setLayout(hbox)
 
-        hbox.addWidget(inputs['repeat'])
-        hbox.addWidget(inputs['clear'])
-        hbox.addWidget(inputs['refresh'])
+        hbox.addWidget(inputs["repeat"])
+        hbox.addWidget(inputs["clear"])
+        hbox.addWidget(inputs["refresh"])
 
         # --------------------------------------------------------------------------------
         # The single button inside the current vbox layout
         # It contains the save experiment design button
-        vbox.addWidget(inputs['save'])
+        vbox.addWidget(inputs["save"])
 
         def _save():
             name, ok = QtWidgets.QInputDialog.getText(
-                self, 'Save protocol', 'Description:')
+                self, "Save protocol", "Description:"
+            )
 
             if ok:
-                print(f'Saving {name}')
-                self.my_protocol.save(name, inputs['_buffer'])
+                print(f"Saving {name}")
+                self.my_protocol.save(name, inputs["_buffer"])
 
-        inputs['save'].clicked.connect(_save)
+        inputs["save"].clicked.connect(_save)
 
         # --------------------------------------------------------------------------------
         # The hbox inside the current vbox layout
@@ -1188,42 +1204,46 @@ class MyWidget(QtWidgets.QMainWindow):
         hbox = QtWidgets.QHBoxLayout()
         widget.setLayout(hbox)
 
-        hbox.addWidget(inputs['load_fake'])
-        hbox.addWidget(inputs['fake_file_info'])
+        hbox.addWidget(inputs["load_fake"])
+        hbox.addWidget(inputs["fake_file_info"])
 
         def _load_fake():
             output = QtWidgets.QFileDialog.getExistingDirectory(
-                self, _tr('Select fake pressure data folder'), self.data_folder_path.as_posix())
+                self,
+                _tr("Select fake pressure data folder"),
+                self.data_folder_path.as_posix(),
+            )
 
-            if output is None or output == '':
+            if output is None or output == "":
                 LOGGER.warning(
-                    'Not selected any directory for loading fake pressure data.')
+                    "Not selected any directory for loading fake pressure data."
+                )
                 return
 
             folder = Path(output)
-            data_file = folder.joinpath('data.json')
+            data_file = folder.joinpath("data.json")
 
             if not folder.is_dir():
-                LOGGER.error(
-                    f'Invalid directory for loading fake pressure: {folder}')
+                LOGGER.error(f"Invalid directory for loading fake pressure: {folder}")
                 return
 
             if not data_file.is_file():
                 LOGGER.error(
-                    f'Invalid data file for loading fake pressure: {data_file}')
+                    f"Invalid data file for loading fake pressure: {data_file}"
+                )
                 return
 
             n, stats = self.device_reader.fake_pressure.load_file(data_file)
 
-            inputs['fake_file_info'].setText(
-                f'{data_file.relative_to(self.data_folder_path)}\n{stats}')
+            inputs["fake_file_info"].setText(
+                f"{data_file.relative_to(self.data_folder_path)}\n{stats}"
+            )
 
-            LOGGER.debug(
-                f'Loaded fake pressure data ({n} points): {data_file}')
+            LOGGER.debug(f"Loaded fake pressure data ({n} points): {data_file}")
 
             return
 
-        inputs['load_fake'].clicked.connect(_load_fake)
+        inputs["load_fake"].clicked.connect(_load_fake)
 
         # --------------------------------------------------------------------------------
 
@@ -1231,53 +1251,55 @@ class MyWidget(QtWidgets.QMainWindow):
             n = 0
             length = 0
             text = []
-            for type, value in inputs['_buffer']:
+            for type, value in inputs["_buffer"]:
                 n += 1
                 length += value
-                text.append(f'{n:03d}: {type}\t: {value}\t: {length}')
+                text.append(f"{n:03d}: {type}\t: {value}\t: {length}")
 
-            text = ['# Automatic generated task design',
-                    f'# Blocks: {n}',
-                    f'# Costs: {length} seconds',
-                    '',
-                    '# Real: Block with real feedback',
-                    '# Fake: Block with fake feedback',
-                    # Disable empty block
-                    # '# Empty: Block with empty screen',
-                    '',
-                    'Idx: Type\t: Block\t: Total'] + text
+            text = [
+                "# Automatic generated task design",
+                f"# Blocks: {n}",
+                f"# Costs: {length} seconds",
+                "",
+                "# Real: Block with real feedback",
+                "# Fake: Block with fake feedback",
+                # Disable empty block
+                # '# Empty: Block with empty screen',
+                "",
+                "Idx: Type\t: Block\t: Total",
+            ] + text
 
-            return inputs['_summary'].setText('\n'.join(text))
+            return inputs["_summary"].setText("\n".join(text))
 
         def _clear():
-            inputs['_buffer'] = []
+            inputs["_buffer"] = []
             _update_summary()
 
         def _repeat():
-            inputs['_buffer'] += inputs['_buffer']
+            inputs["_buffer"] += inputs["_buffer"]
             _update_summary()
 
         def _add_block(block):
-            seconds = int(inputs['seconds'].text())
-            inputs['_buffer'].append((block, seconds))
+            seconds = int(inputs["seconds"].text())
+            inputs["_buffer"].append((block, seconds))
             _update_summary()
 
         def _add_block_real():
-            _add_block('Real')
+            _add_block("Real")
 
         def _add_block_fake():
-            _add_block('Fake')
+            _add_block("Fake")
 
         def _add_block_empty():
-            _add_block('Empty')
+            _add_block("Empty")
 
-        inputs['clear'].clicked.connect(_clear)
-        inputs['repeat'].clicked.connect(_repeat)
-        inputs['refresh'].clicked.connect(_update_summary)
+        inputs["clear"].clicked.connect(_clear)
+        inputs["repeat"].clicked.connect(_repeat)
+        inputs["refresh"].clicked.connect(_update_summary)
 
-        inputs['real'].clicked.connect(_add_block_real)
-        inputs['fake'].clicked.connect(_add_block_fake)
-        inputs['empty'].clicked.connect(_add_block_empty)
+        inputs["real"].clicked.connect(_add_block_real)
+        inputs["fake"].clicked.connect(_add_block_fake)
+        inputs["empty"].clicked.connect(_add_block_empty)
 
         _clear()
 
@@ -1294,74 +1316,77 @@ class MyWidget(QtWidgets.QMainWindow):
         Returns:
             dict: The necessary widgets of inputs
         """
+
         def _tr(s):
-            return tr(s, 'subject setup session')
+            return tr(s, "subject setup session")
 
         inputs = dict(
             date=QtWidgets.QDateTimeEdit(),
             subject=QtWidgets.QLineEdit(),
             gender=QtWidgets.QComboBox(),
             age=QtWidgets.QDial(),
-            _summary=QtWidgets.QTextEdit()
+            _summary=QtWidgets.QTextEdit(),
         )
 
         def _tr(s):
-            return tr(s, 'subject setup session')
+            return tr(s, "subject setup session")
 
         # --------------------------------------------------------------------------------
-        groupbox = QtWidgets.QGroupBox(_tr('Subject setup'))
+        groupbox = QtWidgets.QGroupBox(_tr("Subject setup"))
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
         vbox = QtWidgets.QVBoxLayout()
         groupbox.setLayout(vbox)
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(_tr('Experiment date')))
-        vbox.addWidget(inputs['date'])
-        inputs['date'].setDateTime(QtCore.QDateTime.currentDateTime())
+        vbox.addWidget(QtWidgets.QLabel(_tr("Experiment date")))
+        vbox.addWidget(inputs["date"])
+        inputs["date"].setDateTime(QtCore.QDateTime.currentDateTime())
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(_tr('Subject name')))
-        vbox.addWidget(inputs['subject'])
-        inputs['subject'].setPlaceholderText(_tr('Subject name'))
+        vbox.addWidget(QtWidgets.QLabel(_tr("Subject name")))
+        vbox.addWidget(inputs["subject"])
+        inputs["subject"].setPlaceholderText(_tr("Subject name"))
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(_tr('Subject gender')))
-        inputs['gender'].addItems([_tr('male'), _tr('female')])
-        vbox.addWidget(inputs['gender'])
+        vbox.addWidget(QtWidgets.QLabel(_tr("Subject gender")))
+        inputs["gender"].addItems([_tr("male"), _tr("female")])
+        vbox.addWidget(inputs["gender"])
 
         # --------------------------------------------------------------------------------
-        ql = QtWidgets.QLabel(_tr('Subject age'))
+        ql = QtWidgets.QLabel(_tr("Subject age"))
         vbox.addWidget(ql)
 
-        inputs['age'].setRange(1, 40)
-        inputs['age'].setSingleStep(1)
+        inputs["age"].setRange(1, 40)
+        inputs["age"].setSingleStep(1)
 
         def callback(v):
-            ql.setText('{}: {}'.format(_tr('Subject age'), v))  # f'Age: {v}')
+            ql.setText("{}: {}".format(_tr("Subject age"), v))  # f'Age: {v}')
 
-        inputs['age'].valueChanged.connect(callback)
-        inputs['age'].setValue(7)
-        vbox.addWidget(inputs['age'])
+        inputs["age"].valueChanged.connect(callback)
+        inputs["age"].setValue(7)
+        vbox.addWidget(inputs["age"])
 
         # --------------------------------------------------------------------------------
-        vbox.addWidget(QtWidgets.QLabel(_tr('Summary')))
-        vbox.addWidget(inputs['_summary'])
+        vbox.addWidget(QtWidgets.QLabel(_tr("Summary")))
+        vbox.addWidget(inputs["_summary"])
 
         # --------------------------------------------------------------------------------
         def onchange():
-            text = '\n'.join([
-                f"Date: {inputs['date'].dateTime().toString()}",
-                f"Subject: {inputs['subject'].text()}",
-                f"Gender: {inputs['gender'].currentText()}",
-                f"Age: {inputs['age'].value()}",
-            ])
-            inputs['_summary'].setText(text)
+            text = "\n".join(
+                [
+                    f"Date: {inputs['date'].dateTime().toString()}",
+                    f"Subject: {inputs['subject'].text()}",
+                    f"Gender: {inputs['gender'].currentText()}",
+                    f"Age: {inputs['age'].value()}",
+                ]
+            )
+            inputs["_summary"].setText(text)
 
-        inputs['date'].dateTimeChanged.connect(onchange)
-        inputs['subject'].textChanged.connect(onchange)
-        inputs['gender'].currentTextChanged.connect(onchange)
-        inputs['age'].valueChanged.connect(onchange)
+        inputs["date"].dateTimeChanged.connect(onchange)
+        inputs["subject"].textChanged.connect(onchange)
+        inputs["gender"].currentTextChanged.connect(onchange)
+        inputs["age"].valueChanged.connect(onchange)
 
         onchange()
 
@@ -1392,46 +1417,47 @@ class MyWidget(QtWidgets.QMainWindow):
 
         # Compute the sampling rate in real time,
         # and update the status_text component accordingly.
-        n = len(pairs)-1
-        sample_rate = n/max(t1 - t0, 1e-4)
-        self.signal_monitor_widget.status_text.setText(
-            f'{sample_rate:.2f} Hz')
+        n = len(pairs) - 1
+        sample_rate = n / max(t1 - t0, 1e-4)
+        self.signal_monitor_widget.status_text.setText(f"{sample_rate:.2f} Hz")
 
         block = self.block_manager.consume(t1)
 
-        if block == 'Consumed all the blocks.':
-            self.signal_monitor_widget.block_text.setText(
-                'Finished')
-            LOGGER.debug('Block design is completed.')
+        if block == "Consumed all the blocks.":
+            self.signal_monitor_widget.block_text.setText("Finished")
+            LOGGER.debug("Block design is completed.")
             self.fake_blocks = []
             self.save_data()
             return
 
-        if block == 'No block at all.':
-            self.signal_monitor_widget.block_text.setText(
-                f'Idle {pairs[-1][0]:.2f}')
+        if block == "No block at all.":
+            self.signal_monitor_widget.block_text.setText(f"Idle {pairs[-1][0]:.2f}")
             self.signal_monitor_widget.current_block_remainder_text.setText(
-                self.remainder_dict.get('NA', '--'))
-            return t0, t1, ''
+                self.remainder_dict.get("NA", "--")
+            )
+            return t0, t1, ""
 
         # Compute the block status in real time,
         # and update the block_text component accordingly.
         if isinstance(block, dict):
-            block_name = block['name']
-            block_start = block['start']
-            stop = block['stop']
-            total = block['total']
-            duration = block['duration']
+            block_name = block["name"]
+            block_start = block["start"]
+            stop = block["stop"]
+            total = block["total"]
+            duration = block["duration"]
 
-            txt = f'{block_name} | {stop-t1:.0f} | {total-t1:.0f}'
+            txt = f"{block_name} | {stop-t1:.0f} | {total-t1:.0f}"
 
             self.signal_monitor_widget.block_text.setText(txt)
             self.signal_monitor_widget.current_block_remainder_text.setText(
-                self.remainder_dict.get(block_name, '--'))
+                self.remainder_dict.get(block_name, "--")
+            )
 
         return t0, t1, block_name
 
-    def update_curve13(self, pairs: list, t0: float, t1: float, block_name: str, expand_t: float = 0):
+    def update_curve13(
+        self, pairs: list, t0: float, t1: float, block_name: str, expand_t: float = 0
+    ):
         """
         Update the curve1 (the realtime curve) and curve3 (the reference line) in the signal displaying widget (the pyqtgraph figure)
 
@@ -1443,9 +1469,10 @@ class MyWidget(QtWidgets.QMainWindow):
             expand_t (float, optional): How many seconds the end time is expanded to the xRange. Defaults to 0.
         """
         self.signal_monitor_widget.setXRange(
-            t0, max(t1, self.window_length_seconds) + expand_t, padding=0)
+            t0, max(t1, self.window_length_seconds) + expand_t, padding=0
+        )
 
-        if block_name == 'Empty':
+        if block_name == "Empty":
             self.signal_monitor_widget.update_curve1([])
             self.signal_monitor_widget.update_curve3(0, 0, 0, False)
         else:
@@ -1454,7 +1481,8 @@ class MyWidget(QtWidgets.QMainWindow):
                 t0,
                 max(t1, self.window_length_seconds) + expand_t,
                 self.ref_value,
-                self.display_ref_flag)
+                self.display_ref_flag,
+            )
 
     def update_curve2(self, pairs_delay: list):
         """
@@ -1484,27 +1512,29 @@ class MyWidget(QtWidgets.QMainWindow):
 
         step = 0
 
-        if self.animation_feedback_type == 'Std.':
+        if self.animation_feedback_type == "Std.":
             if std > self.animation_feedback_threshold:
                 step = -10
             if std <= self.animation_feedback_threshold:
                 step = 10
 
             LOGGER.debug(
-                f'Compare animation feedback (std), {step}, {std}, {self.animation_feedback_threshold}')
+                f"Compare animation feedback (std), {step}, {std}, {self.animation_feedback_threshold}"
+            )
 
-        if self.animation_feedback_type == 'Avg.':
-            diff = np.abs(avg-self.ref_value)
+        if self.animation_feedback_type == "Avg.":
+            diff = np.abs(avg - self.ref_value)
             if diff > self.animation_feedback_threshold:
                 step = -10
             if diff <= self.animation_feedback_threshold:
                 step = 10
             LOGGER.debug(
-                f'Compare animation feedback (avg), {step}, {diff}, {self.animation_feedback_threshold}')
+                f"Compare animation feedback (avg), {step}, {diff}, {self.animation_feedback_threshold}"
+            )
 
         score = sa.safe_update_score(step)
 
-        LOGGER.debug(f'Update score to: {score}, step: {step}')
+        LOGGER.debug(f"Update score to: {score}, step: {step}")
 
         return score
 
@@ -1524,58 +1554,57 @@ class MyWidget(QtWidgets.QMainWindow):
             # score = np.random.randint(1, 99)
 
             # sa.mk_frames(score)
-            Thread(target=sa.mk_frames, args=(score, ), daemon=True).start()
+            Thread(target=sa.mk_frames, args=(score,), daemon=True).start()
 
         # Draw the tiny window for pressure feedback
         mat = pil2rgb(sa.tiny_window(sa.img, ref=self.ref_value, pairs=pairs))
         self.signal_monitor_widget.animation_img.setImage(
-            mat[::-1].transpose([1, 0, 2]))
+            mat[::-1].transpose([1, 0, 2])
+        )
 
     def toggle_displays(self):
         """
         Setup visible value for the curves according to the current self.display_mode
         """
-        if self.display_mode == 'Delayed':
+        if self.display_mode == "Delayed":
             self.signal_monitor_widget.curve1.setVisible(True)
             self.signal_monitor_widget.curve2.setVisible(True)
             self.signal_monitor_widget.curve3.setVisible(
-                self.display_inputs['zone3'].isChecked())
+                self.display_inputs["zone3"].isChecked()
+            )
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
             self.signal_monitor_widget.animation_img.setVisible(False)
-            self.signal_monitor_widget.current_block_remainder_text.setVisible(
-                True)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(True)
 
-        if self.display_mode == 'Realtime':
+        if self.display_mode == "Realtime":
             self.signal_monitor_widget.curve1.setVisible(True)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(
-                self.display_inputs['zone3'].isChecked())
+                self.display_inputs["zone3"].isChecked()
+            )
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
             self.signal_monitor_widget.animation_img.setVisible(False)
-            self.signal_monitor_widget.current_block_remainder_text.setVisible(
-                True)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(True)
 
-        if self.display_mode == 'Circle fit':
+        if self.display_mode == "Circle fit":
             self.signal_monitor_widget.curve1.setVisible(False)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(False)
             self.signal_monitor_widget.ellipse4.setVisible(True)
             self.signal_monitor_widget.ellipse5.setVisible(True)
             self.signal_monitor_widget.animation_img.setVisible(False)
-            self.signal_monitor_widget.current_block_remainder_text.setVisible(
-                True)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(True)
 
-        if self.display_mode == 'Animation fit':
+        if self.display_mode == "Animation fit":
             self.signal_monitor_widget.curve1.setVisible(False)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(False)
             self.signal_monitor_widget.ellipse4.setVisible(False)
             self.signal_monitor_widget.ellipse5.setVisible(False)
             self.signal_monitor_widget.animation_img.setVisible(True)
-            self.signal_monitor_widget.current_block_remainder_text.setVisible(
-                False)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(False)
 
     def update_graph(self, pairs: list, pairs_delay: list):
         """
@@ -1603,8 +1632,7 @@ class MyWidget(QtWidgets.QMainWindow):
         pairs = [
             p[2:]
             if any(
-                p[-1] > fb['start'] and p[-1] < fb['stop']
-                for fb in self.fake_blocks
+                p[-1] > fb["start"] and p[-1] < fb["stop"] for fb in self.fake_blocks
             )
             else p
             for p in pairs
@@ -1617,8 +1645,8 @@ class MyWidget(QtWidgets.QMainWindow):
         pairs_delay = [
             (p[1], p[3], p[4])
             if any(
-                p[-1] + self.delay_seconds > fb['start'] and p[-1] +
-                self.delay_seconds < fb['stop']
+                p[-1] + self.delay_seconds > fb["start"]
+                and p[-1] + self.delay_seconds < fb["stop"]
                 for fb in self.fake_blocks
             )
             else (p[0], p[2], p[4])
@@ -1626,11 +1654,11 @@ class MyWidget(QtWidgets.QMainWindow):
         ]
 
         # Display the animation img
-        if self.display_mode == 'Animation fit':
+        if self.display_mode == "Animation fit":
             flag_10s = False
 
             while t1 > self.next_10s:
-                LOGGER.debug(f'The 10s gap is reached, {self.next_10s}')
+                LOGGER.debug(f"The 10s gap is reached, {self.next_10s}")
                 self.next_10s += self.next_10s_step
                 flag_10s = True
 
@@ -1640,25 +1668,32 @@ class MyWidget(QtWidgets.QMainWindow):
         # Enter the curve mode for the monitor
         self.signal_monitor_widget.enter_curve_mode()
 
-        if self.display_mode == 'Delayed':
+        if self.display_mode == "Delayed":
             # The expand_t setup is to make sure the delayed curve is kept on the center.
-            self.update_curve13(pairs, t0, t1, block_name,
-                                expand_t=self.window_length_seconds-self.delay_seconds*2)
+            self.update_curve13(
+                pairs,
+                t0,
+                t1,
+                block_name,
+                expand_t=self.window_length_seconds - self.delay_seconds * 2,
+            )
 
-            if block_name != 'Empty':
+            if block_name != "Empty":
                 self.update_curve2(pairs_delay)
 
-        if self.display_mode == 'Realtime':
-            self.update_curve13(pairs, t0, t1, block_name,
-                                expand_t=self.window_length_seconds)
+        if self.display_mode == "Realtime":
+            self.update_curve13(
+                pairs, t0, t1, block_name, expand_t=self.window_length_seconds
+            )
 
-        if self.display_mode == 'Circle fit':
-            self.signal_monitor_widget.setXRange(self.signal_monitor_widget.min_value,
-                                                 self.signal_monitor_widget.max_value)
+        if self.display_mode == "Circle fit":
+            self.signal_monitor_widget.setXRange(
+                self.signal_monitor_widget.min_value,
+                self.signal_monitor_widget.max_value,
+            )
             if pairs is not None:
                 if len(pairs) > 0:
-                    self.signal_monitor_widget.ellipse5_size_changed(
-                        pairs[-1][0])
+                    self.signal_monitor_widget.ellipse5_size_changed(pairs[-1][0])
 
         return
 
