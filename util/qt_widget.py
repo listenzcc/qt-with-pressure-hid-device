@@ -506,30 +506,28 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         self.app = app
 
-        # ! There is no need to bind the translator to the app
-        # self.translator = translator
-        # self.app.removeTranslator(self.translator)
+        # --------------------------------------------------------------------------------
+        # Start button, start the block design
+        self.start_button = QtWidgets.QPushButton(tr("Start"))
+        self.start_button.clicked.connect(self.start_block_design)
 
         # --------------------------------------------------------------------------------
-        # Hello world slogan and click method
-        self.hello = [
-            "Hello world",
-            "Hallo Welt",
-            "你好",
-            "Hei maailma",
-            "Hola Mundo",
-            "Привет мир",
-        ]
-
-        self.start_button = QtWidgets.QPushButton(tr("Start"))
+        # Terminate button, terminate the on-going block design
         self.terminate_button = QtWidgets.QPushButton(tr("Terminate"))
-
-        self.text = QtWidgets.QLabel(
-            "Hello World", alignment=QtCore.Qt.AlignCenter)
-
-        self.start_button.clicked.connect(self.start_block_design)
         self.terminate_button.clicked.connect(self.terminate)
         self.terminate_button.setDisabled(True)
+
+        # --------------------------------------------------------------------------------
+        # Toggle others button, toggle the displays other than the signal monitor
+        self.toggle_others_button = QtWidgets.QPushButton(tr("Toggle others"))
+        self.toggle_others_button.clicked.connect(self.toggle_others)
+
+        # --------------------------------------------------------------------------------
+        # Toggle full screen display
+        self.toggle_full_screen_display_button = QtWidgets.QPushButton(
+            tr('Toggle full screen'))
+        self.toggle_full_screen_display_button.clicked.connect(
+            self.toggle_full_screen_display)
 
         # --------------------------------------------------------------------------------
         self.signal_monitor_widget = SignalMonitorWidget()
@@ -538,44 +536,70 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         self.widget_0 = QtWidgets.QWidget()
         self.setCentralWidget(self.widget_0)
 
-        self.widget_0_0 = QtWidgets.QWidget()
-        self.widget_0_1 = QtWidgets.QWidget()
-        self.widget_0_2 = QtWidgets.QWidget()
-        self.widget_0_3 = QtWidgets.QWidget()
+        self.widget_0_0_signal_monitor = QtWidgets.QWidget()
+        self.widget_0_1_subject_stuff = QtWidgets.QWidget()
+        self.widget_0_2_experiment_stuff = QtWidgets.QWidget()
+        self.widget_0_3_display_stuff = QtWidgets.QWidget()
 
         # --------------------------------------------------------------------------------
         # Make layout 0
         layout = QtWidgets.QHBoxLayout(self.widget_0)
-        layout.addWidget(self.widget_0_1)
-        layout.addWidget(self.widget_0_2)
-        layout.addWidget(self.widget_0_3)
-        layout.addWidget(self.widget_0_0)
+        layout.addWidget(self.widget_0_1_subject_stuff)
+        layout.addWidget(self.widget_0_2_experiment_stuff)
+        layout.addWidget(self.widget_0_3_display_stuff)
+        layout.addWidget(self.widget_0_0_signal_monitor)
 
         # Make layout 0 0
-        layout = QtWidgets.QVBoxLayout(self.widget_0_0)
-        layout.addWidget(self.text)
+        layout = QtWidgets.QVBoxLayout(self.widget_0_0_signal_monitor)
         widget = QtWidgets.QWidget()
         hbox = QtWidgets.QHBoxLayout()
         widget.setLayout(hbox)
         hbox.addWidget(self.start_button)
         hbox.addWidget(self.terminate_button)
+        hbox.addWidget(self.toggle_full_screen_display_button)
+        hbox.addWidget(self.toggle_others_button)
         layout.addWidget(widget)
         layout.addWidget(self.signal_monitor_widget)
 
         # Make layout 0 1
-        layout = QtWidgets.QVBoxLayout(self.widget_0_1)
+        layout = QtWidgets.QVBoxLayout(self.widget_0_1_subject_stuff)
         self.subject_inputs = self.subject_stuff(layout)
 
         # Make layout 0 2
-        layout = QtWidgets.QVBoxLayout(self.widget_0_2)
+        layout = QtWidgets.QVBoxLayout(self.widget_0_2_experiment_stuff)
         self.experiment_inputs = self.experiment_stuff(layout)
 
         # Make layout 0 3
-        layout = QtWidgets.QVBoxLayout(self.widget_0_3)
+        layout = QtWidgets.QVBoxLayout(self.widget_0_3_display_stuff)
         self.display_inputs = self.display_stuff(layout)
 
         # # Handle resize event
         # self.resizeEvent.connect(self.on_resized)
+
+    def keyPressEvent(self, event):
+        # F11 key code is 16777274
+        known_key_code = {
+            16777274: 'F11'
+        }
+
+        if known_key_code.get(event.key()) == 'F11':
+            self.toggle_full_screen_display()
+
+    def toggle_full_screen_display(self):
+        if QtCore.Qt.WindowFullScreen & self.windowState():
+            # is showFullScreen
+            self.showNormal()
+            LOGGER.debug('Entered show normal state')
+        else:
+            # is not showFullScreen
+            self.showFullScreen()
+            LOGGER.debug('Entered show full screen state')
+
+    def toggle_others(self):
+        # self.layout03.hide()
+        for e in [self.widget_0_1_subject_stuff, self.widget_0_2_experiment_stuff, self.widget_0_3_display_stuff]:
+            e.setHidden(not e.isHidden())
+            LOGGER.debug(f'Set display of {e} to hidden: {e.isHidden()}')
 
     def resizeEvent(self, event):
         """
@@ -669,9 +693,8 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         It also restarts the self.device_reader.
         """
 
+        # Reset score animation
         sa.reset()
-
-        self.text.setText(random.choice(self.hello))
 
         self.start_button.setDisabled(True)
         self.terminate_button.setDisabled(False)
@@ -714,9 +737,8 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         subject_info = self.setup_snapshot["subject_info"]
         experiment_info = self.setup_snapshot["experiment_info"]
 
-        folder = self.data_folder_path.joinpath(
-            "{}".format(datetime.strftime(datetime.now(), "%Y-%m-%d-%H-%M-%S"))
-        )
+        _filename = datetime.strftime(datetime.now(), "%Y-%m-%d-%H-%M-%S")
+        folder = self.data_folder_path.joinpath(f'{_filename}')
 
         folder.mkdir(exist_ok=True, parents=True)
 
@@ -1623,7 +1645,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             mat[::-1].transpose([1, 0, 2])
         )
 
-    def toggle_displays(self):
+    def _setup_display_modes_inside_monitor(self):
         """
         Setup visible value for the curves according to the current self.display_mode
         """
@@ -1685,7 +1707,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             return
 
         # Automatically toggle the display status of the graph components
-        self.toggle_displays()
+        self._setup_display_modes_inside_monitor()
 
         # The t0, t1 is the start, stop time of the incoming data
         # The block_name is one of ['Real', 'Fake', 'Empty']
