@@ -15,6 +15,16 @@
     </message>
 
     <message>
+      <source>Toggle full screen</source>
+      <translation type="">切换全屏显示</translation>
+    </message>
+
+    <message>
+      <source>Toggle others</source>
+      <translation type="">切换控件显示</translation>
+    </message>
+
+    <message>
       <source>Pressure feedback system by Dr. Zhang</source>
       <translation type="">压感反馈系统</translation>
     </message>
@@ -97,6 +107,11 @@
     <message>
       <source>Fake</source>
       <translation type="">伪反馈</translation>
+    </message>
+
+    <message>
+      <source>Hide</source>
+      <translation type="">隐藏反馈</translation>
     </message>
 
     <message>
