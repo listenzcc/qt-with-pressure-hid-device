@@ -768,8 +768,9 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             animation_value_type=QtWidgets.QComboBox(),
             animation_value_threshold=QtWidgets.QDial(),
             # Correction
-            button_0g=QtWidgets.QPushButton(_tr("Correction 0g")),
-            button_200g=QtWidgets.QPushButton(_tr("Correction 200g")),
+            button_0g=QtWidgets.QPushButton(_tr("Ruler correction 0g")),
+            button_200g=QtWidgets.QPushButton(_tr("Ruler correction 200g")),
+            button_offset_0g=QtWidgets.QPushButton(_tr("Zero correction 0g"))
         )
 
         def pen2hex(pen):
@@ -964,52 +965,67 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         vbox4.addWidget(inputs["button_0g"])
         vbox4.addWidget(inputs["button_200g"])
+        vbox4.addWidget(inputs["button_offset_0g"])
 
-        def _write_to_correction(real_g, num):
-            p = root_path.joinpath(f"correction/g{real_g}")
+        def _write_to_correction(name, num):
+            p = root_path.joinpath(f"correction/{name}")
             with open(p, "w") as f:
                 f.write(f"{num}")
-            LOGGER.debug(f"Wrote correction {real_g}({num}) to {p}")
+            LOGGER.debug(f"Wrote correction {name}({num}) to {p}")
 
         def _correction_0g():
             pairs = self.device_reader.peek(100)
-
             n = len(pairs)
-
             if n == 0:
-                LOGGER.debug(
+                LOGGER.warning(
                     "Failed to correct with the 0 g, since the data is empty")
                 return
-
             g0 = int(sum(e[1] for e in pairs) / n)
             self.device_reader.g0 = g0
-
-            threading.Thread(target=_write_to_correction, args=(0, g0)).start()
-
+            self.device_reader.offset_g0 = g0
+            threading.Thread(
+                target=_write_to_correction,
+                args=('g0', g0)).start()
+            threading.Thread(
+                target=_write_to_correction,
+                args=('offset_g0', g0)).start()
             LOGGER.debug(f"Re-correct the g0 to {g0} (with {n} points)")
+            LOGGER.debug(f"Re-correct the offset_g0 to {g0} (with {n} points)")
 
         def _correction_200g():
             pairs = self.device_reader.peek(100)
-
             n = len(pairs)
-
             if n == 0:
-                LOGGER.debug(
+                LOGGER.warning(
                     "Failed to correct with the 200 g, since the data is empty"
                 )
                 return
-
             g200 = int(sum(e[1] for e in pairs) / n)
             self.device_reader.g200 = g200
-
             threading.Thread(
                 target=_write_to_correction,
-                args=(200, g200)).start()
-
+                args=('g200', g200)).start()
             LOGGER.debug(f"Re-correct the g200 to {g200} (with {n} points)")
+
+        def _correction_offset_0g():
+            pairs = self.device_reader.peek(100)
+            n = len(pairs)
+            if n == 0:
+                LOGGER.warning(
+                    "Failed to correct with the offset 0 g, since the data is empty"
+                )
+                return
+            offset_g0 = int(sum(e[1] for e in pairs) / n)
+            self.device_reader.offset_g0 = offset_g0
+            threading.Thread(
+                target=_write_to_correction,
+                args=('offset_g0', offset_g0)).start()
+            LOGGER.debug(
+                f"Re-correct the offset_g0 to {offset_g0} (with {n} points)")
 
         inputs["button_0g"].clicked.connect(_correction_0g)
         inputs["button_200g"].clicked.connect(_correction_200g)
+        inputs["button_offset_0g"].clicked.connect(_correction_offset_0g)
 
         # --------------------------------------------------------------------------------
 

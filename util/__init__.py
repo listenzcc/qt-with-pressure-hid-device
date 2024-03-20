@@ -50,8 +50,10 @@ setup = dict(
     device=dict(
         sample_rate=125,  # Hz
         product_string='HIDtoUART example',  # name
-        g0=int(open(root_path.joinpath('correction/g0')).read()),  # 44000,
-        g200=int(open(root_path.joinpath('correction/g200')).read())  # 46000,
+        g0=int(open(root_path.joinpath('correction/g0')).read()),  # 44000
+        g200=int(open(root_path.joinpath('correction/g200')).read()),  # 46000
+        offset_g0=int(open(root_path.joinpath(
+            'correction/offset_g0')).read()),  # same as g0
     ),
     experiment=dict(
         remainder=dict(
