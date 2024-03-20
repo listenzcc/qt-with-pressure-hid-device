@@ -8,8 +8,9 @@ display:
 device:
   sample_rate: 125
   product_string: HIDtoUART example
-  g0: 44064
-  g200: 46122
+  g0: 44065
+  g200: 46123
+  offset_g0: 43754
 experiment:
   remainder:
     Real: T

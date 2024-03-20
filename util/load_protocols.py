@@ -66,7 +66,7 @@ class MyProtocol(object):
 
             k = path.name.replace('.json', '')
 
-            self.protocols[k] = json.load(open(path))
+            self.protocols[k] = json.load(open(path, encoding='utf-8'))
 
             LOGGER.debug(f'Loaded protocol: {k}, {self.protocols[k]}')
 

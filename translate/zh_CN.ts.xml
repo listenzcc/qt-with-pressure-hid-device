@@ -70,13 +70,18 @@
     </message>
 
     <message>
-      <source>Correction 0g</source>
-      <translation type="">校正 0 克</translation>
+      <source>Ruler correction 0g</source>
+      <translation type="">砝码校正（ 0 克）</translation>
     </message>
 
     <message>
-      <source>Correction 200g</source>
-      <translation type="">校正 200 克</translation>
+      <source>Ruler correction 200g</source>
+      <translation type="">砝码校正（200克）</translation>
+    </message>
+
+    <message>
+      <source>Zero correction 0g</source>
+      <translation type="">零点校正</translation>
     </message>
 
   </context>

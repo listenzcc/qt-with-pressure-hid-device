@@ -176,6 +176,7 @@ class RealTimeHidReader(object):
 
     g0 = CONF['device']['g0']
     g200 = CONF['device']['g200']
+    offset_g0 = CONF['device']['offset_g0']
 
     use_simplex_noise_flag = True  # False
 
@@ -228,13 +229,20 @@ class RealTimeHidReader(object):
         """
         Convert the value to the pressure value.
 
+        output is:
+            - 0, when value is self.offset_g0
+            - 200, when value is different with the self.offset_g0 with 200 / (self.g200 - self.g0)
+
         Args:
             value (int): The input value.
 
         Returns:
             float: The converted pressure value. 
         """
-        return (value - self.g0) / (self.g200 - self.g0) * 200.0
+        bias = self.offset_g0
+        k = 200 / (self.g200 - self.g0)
+        return (value - bias) * k
+        # return (value - self.g0) / (self.g200 - self.g0) * 200.0
 
     def _reading(self):
         """
