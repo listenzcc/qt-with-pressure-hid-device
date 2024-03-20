@@ -75,7 +75,7 @@ class SignalMonitorWidget(pg.PlotWidget):
     pg.setConfigOption("background", "w")
     pg.setConfigOption("foreground", "k")
     pg.setConfigOption("antialias", True)
-    title = "Main graph"
+    title = ""  # "Main graph"
     max_value = CONF["display"]["max_value"]
     min_value = CONF["display"]["min_value"]
     ref_value = CONF["display"]["ref_value"]
