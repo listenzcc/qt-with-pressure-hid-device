@@ -38,6 +38,7 @@ from . import LOGGER, CONF, root_path
 from .load_protocols import MyProtocol
 from .real_time_hid_reader import RealTimeHidReader
 from .score_animation import ScoreAnimation, pil2rgb
+from .realign import realign_into_8ms_sampling
 
 from rich import print, inspect
 
@@ -732,16 +733,21 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         It also restarts the self.device_reader.
         """
+        # 1. Get data
         data = self.device_reader.stop()
+        # Realign the data
+        data = realign_into_8ms_sampling(data)
 
+        # 2. Get other stuff
         subject_info = self.setup_snapshot["subject_info"]
         experiment_info = self.setup_snapshot["experiment_info"]
 
+        # 4. Makeup how to save them
         _filename = datetime.strftime(datetime.now(), "%Y-%m-%d-%H-%M-%S")
         folder = self.data_folder_path.joinpath(f'{_filename}')
-
         folder.mkdir(exist_ok=True, parents=True)
 
+        # 5. Save into files
         json.dump(data, open(folder.joinpath("data.json"), "w"))
         json.dump(subject_info, open(folder.joinpath("subject.json"), "w"))
         json.dump(experiment_info, open(
