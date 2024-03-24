@@ -267,6 +267,7 @@ class SignalMonitorWidget(pg.PlotWidget):
             self.status_text.GraphicsItemFlag.ItemIgnoresTransformations
         )
         self.status_text.setParentItem(legend)
+        self.status_text.setVisible(False)
 
         # --------------------------------------------------------------------------------
         # The current block remainder,
@@ -814,6 +815,38 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         groupbox.setLayout(main_box_layout)
 
         # --------------------------------------------------------------------------------
+        # Playback
+        zone_playback = QtWidgets.QGroupBox(_tr('Playback'))
+        zone_playback.setCheckable(True)
+        zone_playback.setChecked(False)
+        main_box_layout.addWidget(zone_playback)
+
+        def _display_loaded_curve(data: list):
+            _ref_value = self.ref_value
+            _show_grid_flag = self.display_inputs['grid_toggle'].isChecked()
+
+            self._setup_display_modes_inside_monitor('Realtime')
+            self.signal_monitor_widget.enter_curve_mode(
+                _ref_value, _show_grid_flag, _show_grid_flag)
+
+            a, b = data[0][-1], data[-1][-1]
+            self.signal_monitor_widget.setXRange(a, b)
+            self.signal_monitor_widget.setYRange(0, 2 * self.ref_value)
+            self.signal_monitor_widget.update_curve1(data)
+            self.signal_monitor_widget.update_curve3(
+                a, b, self.ref_value, True)
+            self.signal_monitor_widget.block_text.setText('Playback')
+
+        def _zone_playback_checked(checked: bool):
+            if checked:
+                self.timer.stop()
+                _display_loaded_curve(self.device_reader.fake_pressure.buffer)
+            else:
+                self.restart_reader(self.device_reader)
+
+        zone_playback.toggled.connect(_zone_playback_checked)
+
+        # --------------------------------------------------------------------------------
         inputs["display_mode"].addItems(self.display_modes)
         inputs["display_mode"].setCurrentText(self.display_mode)
 
@@ -1329,7 +1362,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             n, stats = self.device_reader.fake_pressure.load_file(data_file)
 
             inputs["fake_file_info"].setText(
-                f"{data_file.relative_to(self.data_folder_path)}\n{stats}"
+                f"{data_file.parent.name}\n{stats}"
             )
 
             LOGGER.debug(
@@ -1651,11 +1684,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             mat[::-1].transpose([1, 0, 2])
         )
 
-    def _setup_display_modes_inside_monitor(self):
+    def _setup_display_modes_inside_monitor(self, display_mode: str = None):
         """
         Setup visible value for the curves according to the current self.display_mode
         """
-        if self.display_mode == "Delayed":
+        if display_mode is None:
+            display_mode = self.display_mode
+
+        if display_mode == "Delayed":
             self.signal_monitor_widget.curve1.setVisible(True)
             self.signal_monitor_widget.curve2.setVisible(True)
             self.signal_monitor_widget.curve3.setVisible(
@@ -1667,7 +1703,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.current_block_remainder_text.setVisible(
                 True)
 
-        if self.display_mode == "Realtime":
+        if display_mode == "Realtime":
             self.signal_monitor_widget.curve1.setVisible(True)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(
@@ -1679,7 +1715,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.current_block_remainder_text.setVisible(
                 True)
 
-        if self.display_mode == "Circle fit":
+        if display_mode == "Circle fit":
             self.signal_monitor_widget.curve1.setVisible(False)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(False)
@@ -1689,7 +1725,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.current_block_remainder_text.setVisible(
                 True)
 
-        if self.display_mode == "Animation fit":
+        if display_mode == "Animation fit":
             self.signal_monitor_widget.curve1.setVisible(False)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(False)
@@ -1766,7 +1802,6 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             _ref_value = None
             _show_grid_flag = False
 
-        # print(dir(self.display_inputs['grid_toggle']))
         self.signal_monitor_widget.enter_curve_mode(
             _ref_value, _show_grid_flag, _show_grid_flag)
 
