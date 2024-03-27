@@ -94,6 +94,11 @@
       <translation type="">零点校正</translation>
     </message>
 
+    <message>
+      <source>Playback</source>
+      <translation type="">数据回放</translation>
+    </message>
+
   </context>
 
   <context>

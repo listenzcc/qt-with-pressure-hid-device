@@ -20,7 +20,6 @@ Functions:
 # Requirements and constants
 import subprocess
 from pathlib import Path
-from tqdm.auto import tqdm
 
 root = Path(__file__).parent
 
@@ -29,9 +28,7 @@ root = Path(__file__).parent
 
 
 def iter_ts_xml_files():
-    files = [e for e in root.iterdir() if e.name.endswith('.ts.xml')]
-    for f in tqdm(files, 'Walking around ts.xml files:'):
-        yield f
+    yield from [e for e in root.iterdir() if e.name.endswith('.ts.xml')]
 
 
 def compile_ts2qm(file):

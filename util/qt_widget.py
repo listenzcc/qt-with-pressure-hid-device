@@ -247,7 +247,7 @@ class SignalMonitorWidget(pg.PlotWidget):
         legend = self.getPlotItem().addLegend(offset=(10, 10))
         self.block_text = pg.TextItem("Idle")
         font = QFont()
-        font.setPixelSize(40)
+        font.setPixelSize(20)
         self.block_text.setFont(font)
         self.block_text.setAnchor((0, 0))
         self.block_text.setFlag(
@@ -819,9 +819,8 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         zone_playback = QtWidgets.QGroupBox(_tr('Playback'))
         zone_playback.setCheckable(True)
         zone_playback.setChecked(False)
-        main_box_layout.addWidget(zone_playback)
 
-        def _display_loaded_curve(data: list):
+        def _display_loaded_curve(data: list, folder: Path):
             _ref_value = self.ref_value
             _show_grid_flag = self.display_inputs['grid_toggle'].isChecked()
 
@@ -835,13 +834,47 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.update_curve1(data)
             self.signal_monitor_widget.update_curve3(
                 a, b, self.ref_value, True)
-            self.signal_monitor_widget.block_text.setText('Playback')
+            self.signal_monitor_widget.block_text.setText(
+                f'Playback: {folder.name}')
+
+        def _load_playback():
+            folder = QtWidgets.QFileDialog.getExistingDirectory(
+                self,
+                _tr("Select fake pressure data folder"),
+                self.data_folder_path.as_posix(),
+            )
+
+            if folder is None or folder == "":
+                LOGGER.warning(
+                    "Not selected any directory for loading fake pressure data."
+                )
+                return
+
+            try:
+                folder = Path(folder)
+                file = folder.joinpath('data.json')
+                data = json.load(open(file))
+            except Exception:
+                LOGGER.warning(f'Invalid file: {file}')
+                return
+
+            return dict(data=data, folder=folder)
 
         def _zone_playback_checked(checked: bool):
             if checked:
+                # Enter into playback display mode
+                obj = _load_playback()
+
+                # If nothing is selected, uncheck the trigger
+                if obj is None:
+                    zone_playback.setChecked(False)
+                    return
+
                 self.timer.stop()
-                _display_loaded_curve(self.device_reader.fake_pressure.buffer)
+                # _display_loaded_curve(self.device_reader.fake_pressure.buffer)
+                _display_loaded_curve(obj['data'], obj['folder'])
             else:
+                # Escape from playback display mode
                 self.restart_reader(self.device_reader)
 
         zone_playback.toggled.connect(_zone_playback_checked)
@@ -1208,6 +1241,8 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 zone3.setVisible(True)
                 zone4.setVisible(False)
                 zone_animation.setVisible(True)
+
+        main_box_layout.addWidget(zone_playback)
 
         inputs["display_mode"].currentTextChanged.connect(_change_display_mode)
         _change_display_mode(self.display_mode)
