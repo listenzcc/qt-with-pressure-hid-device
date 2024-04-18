@@ -28,7 +28,7 @@ import opensimplex
 
 import numpy as np
 
-from . import LOGGER, CONF
+from . import logger, project_conf
 
 # %% ---- 2023-09-17 ------------------------
 # Function and class
@@ -58,11 +58,11 @@ class TargetDevice(object):
     @detect_product() (method): Automatically detect the device.
 
     """
-    product_string = CONF['device']['product_string']  # 'HIDtoUART example'
+    product_string = project_conf['device']['product_string']  # 'HIDtoUART example'
 
     def __init__(self):
         self.detect_product()
-        LOGGER.info(f'Initialized TargetDevice {self}')
+        logger.info(f'Initialized TargetDevice {self}')
 
     def detect_product(self):
         """Detect the product string of the target device
@@ -76,9 +76,9 @@ class TargetDevice(object):
             device_info = [e for e in hid_devices
                            if e['product_string'] == self.product_string][0]
             device = hid.device()
-            LOGGER.debug(f'Detected device: {device_info}')
+            logger.debug(f'Detected device: {device_info}')
         except Exception as err:
-            LOGGER.error(f'Failed to detect the product, {err}')
+            logger.error(f'Failed to detect the product, {err}')
             device_info = dict(
                 error=f'Can not detect the product: {self.product_string}')
             device = None
@@ -97,19 +97,19 @@ class TargetDevice(object):
                 yield None
             else:
                 self.device.open_path(path)
-                LOGGER.debug(f'Opened path: {path}')
+                logger.debug(f'Opened path: {path}')
                 yield self.device
 
         finally:
             if self.device is not None:
                 self.device.close()
-                LOGGER.debug(f'Closed path: {path}')
+                logger.debug(f'Closed path: {path}')
 
 
 class FakePressure(object):
     def __init__(self, data=None):
         self.load(data)
-        LOGGER.info(
+        logger.info(
             f'Initialized {self.__class__} with {self.n} time points, the first is {self.buffer[0]}')
 
     def load_file(self, file):
@@ -122,7 +122,7 @@ class FakePressure(object):
                 (100, 45000, -1, -1, -1),
                 (200, 46000, -1, -1, -1),
             ]
-            LOGGER.warning(
+            logger.warning(
                 'Load FakePressure with invalid data, using default instead.')
 
         n = len(data)
@@ -140,7 +140,7 @@ class FakePressure(object):
         self.i = 0
         self.n = n
 
-        LOGGER.debug(f'Loaded FakePressure data: {stats}')
+        logger.debug(f'Loaded FakePressure data: {stats}')
 
         return n, stats
 
@@ -171,13 +171,13 @@ class RealTimeHidReader(object):
 
     """
 
-    sample_rate = int(CONF['device']['sample_rate'])  # 125  # Hz
-    delay_seconds = CONF['display']['delay_seconds']
+    sample_rate = int(project_conf['device']['sample_rate'])  # 125  # Hz
+    delay_seconds = project_conf['display']['delay_seconds']
     delay_pnts = int(delay_seconds * sample_rate)
 
-    g0 = CONF['device']['g0']
-    g200 = CONF['device']['g200']
-    offset_g0 = CONF['device']['offset_g0']
+    g0 = project_conf['device']['g0']
+    g200 = project_conf['device']['g200']
+    offset_g0 = project_conf['device']['offset_g0']
 
     use_simplex_noise_flag = True  # False
 
@@ -190,13 +190,13 @@ class RealTimeHidReader(object):
         self.device = device
         self.ts = 1 / self.sample_rate  # milliseconds
 
-        LOGGER.info(
+        logger.info(
             f'Initialized device: {self.device} with {self.sample_rate} | {self.ts}')
 
     def recompute_delay(self, delay_seconds: int):
         self.delay_seconds = delay_seconds
         self.delay_pnts = int(delay_seconds * self.sample_rate)
-        LOGGER.debug(
+        logger.debug(
             f'Recompute delay: {self.delay_seconds} to {self.delay_pnts} points')
 
     def stop(self) -> list:
@@ -211,8 +211,8 @@ class RealTimeHidReader(object):
         #     # self.device.close()
         #     pass
 
-        LOGGER.debug('Stopped the HID device reading loop.')
-        LOGGER.debug(f'The session collected {len(self.buffer)} time points.')
+        logger.debug('Stopped the HID device reading loop.')
+        logger.debug(f'The session collected {len(self.buffer)} time points.')
 
         return self.buffer.copy()
 
@@ -224,7 +224,7 @@ class RealTimeHidReader(object):
         t = threading.Thread(target=self._reading, args=(), daemon=True)
         t.start()
 
-        LOGGER.debug('Started the HID device reading loop')
+        logger.debug('Started the HID device reading loop')
 
     def number2pressure(self, value: int) -> float:
         """
@@ -265,9 +265,9 @@ class RealTimeHidReader(object):
             valid_device_flag = device is not None
 
             if not valid_device_flag:
-                LOGGER.warning('Invalid device')
+                logger.warning('Invalid device')
 
-            LOGGER.debug('Starts the reading loop')
+            logger.debug('Starts the reading loop')
 
             tic = time.time()
             while self.running:
@@ -318,7 +318,7 @@ class RealTimeHidReader(object):
                     self.buffer_delay.append(avg+std+(timestamp,))
 
             t = time.time()
-            LOGGER.debug(
+            logger.debug(
                 f'Stopped the reading loop on {t}, lasting {t - tic} seconds.')
 
         return

@@ -21,7 +21,7 @@ Functions:
 import numpy as np
 import scipy.interpolate
 
-from . import LOGGER
+from . import logger
 
 
 # %% ---- 2024-03-24 ------------------------
@@ -72,7 +72,7 @@ def realign_into_8ms_sampling(data: list) -> np.ndarray:
         interpolator = worker(x=x_sampling, y=data[:, i])
         realigned[:, i] = interpolator(x_realign)
 
-    LOGGER.debug(
+    logger.debug(
         f'Realigned the data with {m} -> {n} points, interpolator is {worker}')
 
     return realigned.tolist()
