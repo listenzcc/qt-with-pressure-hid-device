@@ -39,6 +39,17 @@ def pil2rgb(img):
 
 
 class ScoreAnimation(object):
+    '''
+    The pipeline of the animation is append the self.buffer using images.
+    The self.gif_buffer store the animation images.
+    '''
+
+    # ? --------------------------------------------------------------------------------
+    # ? Potential problem:
+    # ? It causes image blinking as the resolution is changed,
+    # ? since the images had been created using the previous resolution.
+    # ? --------------------------------------------------------------------------------
+
     score_max = 100
     score_min = 0
     score_default = 50
@@ -48,8 +59,9 @@ class ScoreAnimation(object):
     width = 800
     height = 600
 
-    font = ImageFont.truetype(root_path.joinpath('font/MSYHL.ttc').as_posix(),
-                              size=width//20)
+    font = ImageFont.truetype(
+        root_path.joinpath('font/MSYHL.ttc').as_posix(),
+        size=width//20)
 
     gif = Image.open(root_path.joinpath('img/building.gif'))
     # gif = Image.open(root_path.joinpath('img/giphy.gif'))

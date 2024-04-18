@@ -1,8 +1,10 @@
 log
 resource/hidapi-win.zip
 Data
+release
 
 __pycache__
 dist
+*.iso
 *.exe
 build

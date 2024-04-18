@@ -42,9 +42,14 @@ setup = dict(
     display=dict(
         window_length_seconds=20,  # Seconds
         delay_seconds=10,  # Seconds
-        max_value=2000,
-        min_value=-10,
-        ref_value=500,
+        max_value=2000,  # g
+        min_value=-10,  # g
+        ref_value=500,  # g
+
+        two_step_animation_mean_threshold=100,  # g
+        two_step_animation_std_threshold=100,  # g
+        two_step_animation_window_length=1.0,  # seconds
+
         display_ref_flag=True
     ),
     device=dict(

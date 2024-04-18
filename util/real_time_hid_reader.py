@@ -62,6 +62,7 @@ class TargetDevice(object):
 
     def __init__(self):
         self.detect_product()
+        LOGGER.info(f'Initialized TargetDevice {self}')
 
     def detect_product(self):
         """Detect the product string of the target device
@@ -108,7 +109,7 @@ class TargetDevice(object):
 class FakePressure(object):
     def __init__(self, data=None):
         self.load(data)
-        LOGGER.debug(
+        LOGGER.info(
             f'Initialized {self.__class__} with {self.n} time points, the first is {self.buffer[0]}')
 
     def load_file(self, file):
@@ -189,7 +190,7 @@ class RealTimeHidReader(object):
         self.device = device
         self.ts = 1 / self.sample_rate  # milliseconds
 
-        LOGGER.debug(
+        LOGGER.info(
             f'Initialized device: {self.device} with {self.sample_rate} | {self.ts}')
 
     def recompute_delay(self, delay_seconds: int):
@@ -240,7 +241,10 @@ class RealTimeHidReader(object):
             float: The converted pressure value. 
         """
         bias = self.offset_g0
-        k = 200 / (self.g200 - self.g0)
+
+        # ! Safe divide preventing g200 == g0
+        k = 200 / max(100, self.g200 - self.g0)
+
         return (value - bias) * k
         # return (value - self.g0) / (self.g200 - self.g0) * 200.0
 
