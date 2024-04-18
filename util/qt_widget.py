@@ -34,19 +34,25 @@ from PySide2 import QtCore, QtWidgets
 from PySide2.QtGui import QFont
 from PySide2.QtCore import QCoreApplication
 
-from . import LOGGER, CONF, root_path
+from . import logger, project_conf, root_path
 from .load_protocols import MyProtocol
 from .real_time_hid_reader import RealTimeHidReader
 from .score_animation import ScoreAnimation, pil2rgb
 from .realign import realign_into_8ms_sampling
+from .two_steps_score_animation import TwoStepScore_Animation_CatLeavesSubmarine
 
 from rich import print, inspect
 
 # ---------------
 sa = ScoreAnimation()
-sa.reset()
-sa.mk_frames()
+# sa.reset()
+# sa.mk_frames()
 
+# ---------------
+tssa_cls = TwoStepScore_Animation_CatLeavesSubmarine()
+# tssa_cls.update_score()
+
+# ---------------
 app = QtWidgets.QApplication([])  # noqa
 
 # %% ---- 2023-09-17 ------------------------
@@ -64,7 +70,7 @@ def tr(key: str, context: str = "default", **kwargs) -> str:
         str: The translation.
     """
     output = QCoreApplication.translate(context, key, **kwargs)
-    LOGGER.debug(f"Translated {key}({context}) = {output}")
+    logger.debug(f"Translated {key}({context}) = {output}")
     return output
 
 
@@ -77,15 +83,15 @@ class SignalMonitorWidget(pg.PlotWidget):
     pg.setConfigOption("foreground", "k")
     pg.setConfigOption("antialias", True)
     title = ""  # "Main graph"
-    max_value = CONF["display"]["max_value"]
-    min_value = CONF["display"]["min_value"]
-    ref_value = CONF["display"]["ref_value"]
+    max_value = project_conf["display"]["max_value"]
+    min_value = project_conf["display"]["min_value"]
+    ref_value = project_conf["display"]["ref_value"]
 
     def __init__(self):
         super().__init__()
         self.set_config()
         self.place_components()
-        LOGGER.debug(f"Initialized {self.__class__}")
+        logger.debug(f"Initialized {self.__class__}")
 
     def set_config(self):
         """
@@ -294,7 +300,7 @@ class SignalMonitorWidget(pg.PlotWidget):
         self.curve1.setZValue(2)
         self.curve2.setZValue(3)
 
-        LOGGER.debug(
+        logger.debug(
             f"Initialized drawing of {self.curve1} ({self.pen1}), {self.curve2} ({self.pen2})."
         )
 
@@ -320,8 +326,9 @@ class SignalMonitorWidget(pg.PlotWidget):
         the curve1 is the realtime pressure curve.
 
         Args:
-            pairs (list): The array of realtime pressure curve,
-                          the element is like (value,..., timestamp)
+            pairs (list):
+                The array of realtime pressure curve,
+                the element is like (value,..., timestamp)
         """
         ys = [e[0] for e in pairs]
         ts = [e[-1] for e in pairs]
@@ -371,7 +378,7 @@ class BlockManager(object):
 
     def __init__(self, blocks=[]):
         self.design = self.parse_blocks(blocks)
-        LOGGER.debug(f"Initialized {self.__class__}")
+        logger.debug(f"Initialized {self.__class__}")
 
     def parse_blocks(self, blocks: list):
         """Parse the input block design
@@ -385,7 +392,7 @@ class BlockManager(object):
         design = []
 
         if len(blocks) == 0:
-            LOGGER.debug("Parsed empty blocks.")
+            logger.debug("Parsed empty blocks.")
             return design
 
         design.append(
@@ -415,7 +422,7 @@ class BlockManager(object):
             d["total"] = stop
             d["blocks"] = idx + 1
 
-        LOGGER.debug(f"Parsed blocks design: {design}")
+        logger.debug(f"Parsed blocks design: {design}")
 
         return design
 
@@ -452,7 +459,7 @@ class BlockManager(object):
 
         if t > self.design[0]["stop"]:
             d = self.design.pop(0)
-            LOGGER.debug(f"Consumed block {d}")
+            logger.debug(f"Consumed block {d}")
 
         if len(self.design) == 0:
             return "Consumed all the blocks."
@@ -465,26 +472,34 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
     It is an automatically QT application.
 
-    @update_chart(y) (method): Update the chart using the new value,
-                               it append the new point to the right-most point,
-                               and it pop out the first point in the left-most end.
+    @update_chart(y) (method):
+        Update the chart using the new value,
+        it append the new point to the right-most point,
+        and it pop out the first point in the left-most end.
 
     @_add_series() (private method): Add a series to the chart.
 
     """
 
-    window_length_seconds = CONF["display"]["window_length_seconds"]
-    delay_seconds = CONF["display"]["delay_seconds"]
+    window_length_seconds = project_conf["display"]["window_length_seconds"]
+    delay_seconds = project_conf["display"]["delay_seconds"]
 
-    ref_value = CONF["display"]["ref_value"]
-    max_value = CONF["display"]["max_value"]
-    min_value = CONF["display"]["min_value"]
-    display_ref_flag = CONF["display"]["display_ref_flag"]
+    ref_value = project_conf["display"]["ref_value"]
+    max_value = project_conf["display"]["max_value"]
+    min_value = project_conf["display"]["min_value"]
+    display_ref_flag = project_conf["display"]["display_ref_flag"]
 
-    remainder_dict = CONF["experiment"]["remainder"]
+    remainder_dict = project_conf["experiment"]["remainder"]
 
-    display_mode = "Realtime"
-    display_modes = ["Realtime", "Delayed", "Circle fit", "Animation fit"]
+    # --------------------
+    display_modes = [
+        "Realtime",
+        "Delayed",
+        "Circle fit",
+        "Animation fit",
+        'Cat leaves submarines'
+    ]
+    display_mode = display_modes[0]
 
     window_title = "Pressure feedback system by Dr. Zhang"
 
@@ -591,17 +606,17 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         if QtCore.Qt.WindowFullScreen & self.windowState():
             # is showFullScreen
             self.showNormal()
-            LOGGER.debug('Entered show normal state')
+            logger.debug('Entered show normal state')
         else:
             # is not showFullScreen
             self.showFullScreen()
-            LOGGER.debug('Entered show full screen state')
+            logger.debug('Entered show full screen state')
 
     def toggle_others(self):
         # self.layout03.hide()
         for e in [self.widget_0_1_subject_stuff, self.widget_0_2_experiment_stuff, self.widget_0_3_display_stuff]:
             e.setHidden(not e.isHidden())
-            LOGGER.debug(f'Set display of {e} to hidden: {e.isHidden()}')
+            logger.debug(f'Set display of {e} to hidden: {e.isHidden()}')
 
     def resizeEvent(self, event):
         """
@@ -617,7 +632,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         self.signal_monitor_widget.on_resized()
 
-        LOGGER.debug(f"Main window resized to size {event}")
+        logger.debug(f"Main window resized to size {event}")
 
     def restart_reader(self, reader: RealTimeHidReader):
         """
@@ -630,7 +645,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         if self.device_reader is not None:
             pairs = self.device_reader.stop()
             time.sleep(0.1)
-            LOGGER.warning(
+            logger.warning(
                 f"Closed existing device reader, discharging {len(pairs)} pnts data"
             )
 
@@ -643,13 +658,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         reader.start()
 
-        LOGGER.debug(f"Linked with device reader: {reader}")
+        logger.debug(f"Linked with device reader: {reader}")
 
         self.setWindowTitle(tr(self.window_title))
 
         if self.timer is not None:
             self.timer.stop()
-            LOGGER.warning(f"Stopped existing timer {self.timer}")
+            logger.warning(f"Stopped existing timer {self.timer}")
 
         def update():
             pairs = reader.peek_by_seconds(self.window_length_seconds)
@@ -660,7 +675,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             # not received any valid data,
             # something is wrong.
             if len(pairs) == 0:
-                # LOGGER.error(f'Failed receive valid data')
+                # logger.error(f'Failed receive valid data')
                 return
 
             self.update_graph(pairs, pairs_delay)
@@ -679,11 +694,11 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         self.fake_blocks = [
             e for e in self.block_manager.design if e["name"] == "Fake"]
-        LOGGER.debug(f"Found fake blocks {self.fake_blocks}")
+        logger.debug(f"Found fake blocks {self.fake_blocks}")
 
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
-        LOGGER.debug(
+        logger.debug(
             "Terminated block designed experiment, and the start_button disable status is released."
         )
 
@@ -705,12 +720,12 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         self.fake_blocks = [
             e for e in self.block_manager.design if e["name"] == "Fake"]
-        LOGGER.debug(f"Found fake blocks {self.fake_blocks}")
+        logger.debug(f"Found fake blocks {self.fake_blocks}")
 
         if len(self.block_manager.design) == 0:
             self.start_button.setDisabled(False)
             self.terminate_button.setDisabled(True)
-            LOGGER.warning(
+            logger.warning(
                 "Tried to start the block designed experiment, but no design was found."
             )
             return
@@ -754,7 +769,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         json.dump(experiment_info, open(
             folder.joinpath("experiment.json"), "w"))
 
-        LOGGER.debug(f"Saved data into {folder}")
+        logger.debug(f"Saved data into {folder}")
 
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
@@ -845,7 +860,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             )
 
             if folder is None or folder == "":
-                LOGGER.warning(
+                logger.warning(
                     "Not selected any directory for loading fake pressure data."
                 )
                 return
@@ -855,7 +870,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 file = folder.joinpath('data.json')
                 data = json.load(open(file))
             except Exception:
-                LOGGER.warning(f'Invalid file: {file}')
+                logger.warning(f'Invalid file: {file}')
                 return
 
             return dict(data=data, folder=folder)
@@ -886,6 +901,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         main_box_layout.addWidget(inputs["display_mode"])
 
         # --------------------------------------------------------------------------------
+        # zone1
         zone1 = QtWidgets.QGroupBox(_tr("Curve (realtime)"))
         main_box_layout.addWidget(zone1)
         vbox1 = QtWidgets.QVBoxLayout()
@@ -911,6 +927,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         hbox.addWidget(inputs['grid_toggle'])
 
         # --------------------------------------------------------------------------------
+        # zone2
         zone2 = QtWidgets.QGroupBox(_tr("Curve (delay)"))
         main_box_layout.addWidget(zone2)
         vbox2 = QtWidgets.QVBoxLayout()
@@ -948,6 +965,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         inputs["line2_delay"].valueChanged.connect(_change_delay)
 
         # --------------------------------------------------------------------------------
+        # zone_animation
         zone_animation = QtWidgets.QGroupBox(_tr("Animation opt."))
         zone_animation.setCheckable(True)
         main_box_layout.addWidget(zone_animation)
@@ -962,7 +980,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         def _change_feedback_type(idx):
             value = self.animation_feedback_types[idx]
             self.animation_feedback_type = value
-            LOGGER.debug(f"Changed animation feedback type into: {value}")
+            logger.debug(f"Changed animation feedback type into: {value}")
 
         animation_value_type.currentIndexChanged.connect(_change_feedback_type)
 
@@ -976,7 +994,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         def _label_threshold_changed(value):
             label_threshold.setText(f"{value}")
             self.animation_feedback_threshold = value
-            LOGGER.debug(f"Changed animation feedback threshold into: {value}")
+            logger.debug(f"Changed animation feedback threshold into: {value}")
 
         inputs["animation_value_threshold"].valueChanged.connect(
             _label_threshold_changed
@@ -987,6 +1005,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         inputs["animation_value_threshold"].setMaximum(200)
 
         # --------------------------------------------------------------------------------
+        # zone_two_steps_animation
+        zone_two_steps_animation = QtWidgets.QGroupBox(
+            _tr('Two steps animation opt.'))
+        zone_two_steps_animation.setCheckable(True)
+        main_box_layout.addWidget(zone_two_steps_animation)
+
+        # --------------------------------------------------------------------------------
+        # zone3
         zone3 = inputs["zone3"]
         zone3.setCheckable(True)
         main_box_layout.addWidget(zone3)
@@ -1065,13 +1091,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             p = root_path.joinpath(f"correction/{name}")
             with open(p, "w") as f:
                 f.write(f"{num}")
-            LOGGER.debug(f"Wrote correction {name}({num}) to {p}")
+            logger.debug(f"Wrote correction {name}({num}) to {p}")
 
         def _correction_0g():
             pairs = self.device_reader.peek(100)
             n = len(pairs)
             if n == 0:
-                LOGGER.warning(
+                logger.warning(
                     "Failed to correct with the 0 g, since the data is empty")
                 return
             g0 = int(sum(e[1] for e in pairs) / n)
@@ -1083,14 +1109,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             threading.Thread(
                 target=_write_to_correction,
                 args=('offset_g0', g0)).start()
-            LOGGER.debug(f"Re-correct the g0 to {g0} (with {n} points)")
-            LOGGER.debug(f"Re-correct the offset_g0 to {g0} (with {n} points)")
+            logger.debug(f"Re-correct the g0 to {g0} (with {n} points)")
+            logger.debug(f"Re-correct the offset_g0 to {g0} (with {n} points)")
 
         def _correction_200g():
             pairs = self.device_reader.peek(100)
             n = len(pairs)
             if n == 0:
-                LOGGER.warning(
+                logger.warning(
                     "Failed to correct with the 200 g, since the data is empty"
                 )
                 return
@@ -1099,13 +1125,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             threading.Thread(
                 target=_write_to_correction,
                 args=('g200', g200)).start()
-            LOGGER.debug(f"Re-correct the g200 to {g200} (with {n} points)")
+            logger.debug(f"Re-correct the g200 to {g200} (with {n} points)")
 
         def _correction_offset_0g():
             pairs = self.device_reader.peek(100)
             n = len(pairs)
             if n == 0:
-                LOGGER.warning(
+                logger.warning(
                     "Failed to correct with the offset 0 g, since the data is empty"
                 )
                 return
@@ -1114,7 +1140,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             threading.Thread(
                 target=_write_to_correction,
                 args=('offset_g0', offset_g0)).start()
-            LOGGER.debug(
+            logger.debug(
                 f"Re-correct the offset_g0 to {offset_g0} (with {n} points)")
 
         inputs["button_0g"].clicked.connect(_correction_0g)
@@ -1141,7 +1167,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen1.setColor(qColor)
             _fit_color1()
 
-            LOGGER.debug(f"Set line1 color to: {qColor}")
+            logger.debug(f"Set line1 color to: {qColor}")
 
         def _change_width1(width):
             self.signal_monitor_widget.pen1.setWidth(width)
@@ -1171,7 +1197,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen2.setColor(qColor)
             _fit_color2()
 
-            LOGGER.debug(f"Set line2 color to: {qColor}")
+            logger.debug(f"Set line2 color to: {qColor}")
 
         def _change_width2(width):
             self.signal_monitor_widget.pen2.setWidth(width)
@@ -1201,7 +1227,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.pen3.setColor(qColor)
             _fit_color3()
 
-            LOGGER.debug(f"Set line3 color to: {qColor}")
+            logger.debug(f"Set line3 color to: {qColor}")
 
         def _change_width3(width):
             self.signal_monitor_widget.pen3.setWidth(width)
@@ -1219,7 +1245,11 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             # zone1: option for realtime curve
             # zone2: option for delayed curve
             # zone3: option for reference pressure value
-            # zone4: weight correction
+
+            # zone4: weight correction zone
+
+            # zone_animation: option for animation
+            # zone_two_steps_animation: option for two steps animation
 
             if mode == "Realtime":
                 zone1.setVisible(True)
@@ -1227,13 +1257,15 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 zone3.setVisible(True)
                 zone4.setVisible(True)
                 zone_animation.setVisible(False)
+                zone_two_steps_animation.setVisible(False)
 
             if mode == "Delayed":
                 zone1.setVisible(True)
                 zone2.setVisible(True)
                 zone3.setVisible(True)
-                zone4.setVisible(True)
+                zone4.setVisible(False)
                 zone_animation.setVisible(False)
+                zone_two_steps_animation.setVisible(False)
 
             if mode == "Animation fit":
                 zone1.setVisible(False)
@@ -1241,6 +1273,15 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 zone3.setVisible(True)
                 zone4.setVisible(False)
                 zone_animation.setVisible(True)
+                zone_two_steps_animation.setVisible(False)
+
+            if mode == 'Cat leaves submarines':
+                zone1.setVisible(False)
+                zone2.setVisible(True)
+                zone3.setVisible(True)
+                zone4.setVisible(False)
+                zone_animation.setVisible(False)
+                zone_two_steps_animation.setVisible(True)
 
         main_box_layout.addWidget(zone_playback)
 
@@ -1375,7 +1416,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             )
 
             if output is None or output == "":
-                LOGGER.warning(
+                logger.warning(
                     "Not selected any directory for loading fake pressure data."
                 )
                 return
@@ -1384,12 +1425,12 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             data_file = folder.joinpath("data.json")
 
             if not folder.is_dir():
-                LOGGER.error(
+                logger.error(
                     f"Invalid directory for loading fake pressure: {folder}")
                 return
 
             if not data_file.is_file():
-                LOGGER.error(
+                logger.error(
                     f"Invalid data file for loading fake pressure: {data_file}"
                 )
                 return
@@ -1400,7 +1441,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 f"{data_file.parent.name}\n{stats}"
             )
 
-            LOGGER.debug(
+            logger.debug(
                 f"Loaded fake pressure data ({n} points): {data_file}")
 
             return
@@ -1579,7 +1620,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         if block == "Consumed all the blocks.":
             self.signal_monitor_widget.block_text.setText("Finished")
-            LOGGER.debug("Block design is completed.")
+            logger.debug("Block design is completed.")
             self.fake_blocks = []
             self.save_data()
             return
@@ -1659,8 +1700,18 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         h = self.signal_monitor_widget.animation_img.height()
         ph = self.signal_monitor_widget.animation_img.pixelHeight()
 
-        sa.width = int(w / pw)
-        sa.height = int(h / ph)
+        width = int(w / pw)
+        height = int(h / ph)
+
+        # --------------------
+        sa.width = width
+        sa.height = height
+
+        # --------------------
+        tssa_cls.width = width
+        tssa_cls.height = height
+
+        logger.debug(f'Resized animation image into {(width, height)}')
 
         # print(w, pw, h, ph)
 
@@ -1675,7 +1726,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             if std <= self.animation_feedback_threshold:
                 step = 10
 
-            LOGGER.debug(
+            logger.debug(
                 f"Compare animation feedback (std), {step}, {std}, {self.animation_feedback_threshold}"
             )
 
@@ -1685,13 +1736,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 step = -10
             if diff <= self.animation_feedback_threshold:
                 step = 10
-            LOGGER.debug(
+            logger.debug(
                 f"Compare animation feedback (avg), {step}, {diff}, {self.animation_feedback_threshold}"
             )
 
         score = sa.safe_update_score(step)
 
-        LOGGER.debug(f"Update score to: {score}, step: {step}")
+        logger.debug(f"Update score to: {score}, step: {step}")
 
         return score
 
@@ -1699,6 +1750,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         # Enter into the animation mode
         self.signal_monitor_widget.animation_mode()
 
+        # Update the score if-and-only-if flag_10s is set
         if flag_10s:
             self._resize_animation_img()
 
@@ -1713,8 +1765,9 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             # sa.mk_frames(score)
             Thread(target=sa.mk_frames, args=(score,), daemon=True).start()
 
+        # Always update the tiny window
         # Draw the tiny window for pressure feedback
-        mat = pil2rgb(sa.tiny_window(sa.img, ref=self.ref_value, pairs=pairs))
+        mat = pil2rgb(sa.tiny_window(ref=self.ref_value, pairs=pairs))
         self.signal_monitor_widget.animation_img.setImage(
             mat[::-1].transpose([1, 0, 2])
         )
@@ -1822,7 +1875,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             flag_10s = False
 
             while t1 > self.next_10s:
-                LOGGER.debug(f"The 10s gap is reached, {self.next_10s}")
+                logger.debug(f"The 10s gap is reached, {self.next_10s}")
                 self.next_10s += self.next_10s_step
                 flag_10s = True
 

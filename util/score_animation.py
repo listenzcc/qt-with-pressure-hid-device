@@ -18,6 +18,7 @@ Functions:
 
 # %% ---- 2023-10-30 ------------------------
 # Requirements and constants
+import contextlib
 import cv2
 import time
 import numpy as np
@@ -27,7 +28,7 @@ from threading import Thread
 from rich import print, inspect
 from PIL import Image, ImageDraw, ImageFont
 
-from . import LOGGER, root_path
+from . import logger, root_path
 
 
 # %% ---- 2023-10-30 ------------------------
@@ -38,7 +39,93 @@ def pil2rgb(img):
     return mat
 
 
-class ScoreAnimation(object):
+class AutomaticAnimation(object):
+    width = 800
+    height = 600
+
+    font = ImageFont.truetype(
+        root_path.joinpath('font/MSYHL.ttc').as_posix(),
+        size=width//20)
+
+    interval = 50  # ms, 50 ms refers 20 frames per second
+    img = Image.new(mode='RGB', size=(width, height))
+    fifo_buffer = []
+
+    animating_flag = False
+
+    @contextlib.contextmanager
+    def _safe_animating_flag(self):
+        try:
+            self.animating_flag = True
+            yield
+        finally:
+            self.animating_flag = False
+
+    def animating_loop(self):
+        """
+        Perform animation by shifting the buffer.
+        It keeps going in its own path, regardless others.
+
+        ! The process updates the self.img in its own pace,
+        ! so the UI only needs to fetch the self.img in UI's own pace.
+
+        Args:
+            self: The ScoreAnimation instance.
+
+        Returns:
+            None
+
+        Examples:
+            anim = ScoreAnimation()
+            anim._animating()
+        """
+
+        secs = self.interval / 1000
+
+        # Prevent repeated animation
+        if self.animating_flag:
+            logger.debug('Animating already on the loop')
+            return
+
+        with self._safe_animating_flag():
+            while self._shift() is not None:
+                time.sleep(secs)
+
+        logger.debug('Finished animating')
+
+    def _shift(self):
+        """
+        Shifts the score by popping an image from the stack and updating the current image.
+
+        Args:
+            self: The ScoreAnimation instance.
+
+        Returns:
+            img: The popped image from the stack, or None if the stack is empty.
+        """
+
+        img = self._pop()
+        if img is not None:
+            self.img = img
+        return img
+
+    def _pop(self):
+        """
+        Pops an image from the buffer.
+
+        Args:
+            self: The ScoreAnimation instance.
+
+        Returns:
+            img: The popped image from the buffer, or None if the buffer is empty.
+        """
+
+        if len(self.fifo_buffer) > 0:
+            return self.fifo_buffer.pop(0)
+        return
+
+
+class ScoreAnimation(AutomaticAnimation):
     '''
     The pipeline of the animation is append the self.buffer using images.
     The self.gif_buffer store the animation images.
@@ -55,22 +142,11 @@ class ScoreAnimation(object):
     score_default = 50
     score = score_default
 
-    interval = 50  # ms, 50 ms refers 20 frames per second
-    width = 800
-    height = 600
-
-    font = ImageFont.truetype(
-        root_path.joinpath('font/MSYHL.ttc').as_posix(),
-        size=width//20)
-
     gif = Image.open(root_path.joinpath('img/building.gif'))
     # gif = Image.open(root_path.joinpath('img/giphy.gif'))
 
-    img = Image.new(mode='RGB', size=(width, height))
-
-    buffer = []
-
     def __init__(self):
+        super(ScoreAnimation, self).__init__()
         self.gif_buffer = self.parse_gif()
         self.reset()
 
@@ -83,7 +159,7 @@ class ScoreAnimation(object):
             self.gif.seek(int(j/2)+1)
             # self.gif.seek(int(j/10))
             gif_buffer.append(self.gif.convert('RGB'))
-        LOGGER.debug('Parsed gif into gif_buffer')
+        logger.debug('Parsed gif into gif_buffer')
         return gif_buffer
 
     def reset(self, score: int = None):
@@ -104,67 +180,16 @@ class ScoreAnimation(object):
         """
 
         self.score = self.score_default if score is None else score
-        self.buffer = []
+        self.fifo_buffer = []
 
-        LOGGER.debug(f'Score animation is reset, {self.score}, {score}')
+        logger.debug(f'Score animation is reset, {self.score}, {score}')
 
         return self.score
 
     def pop_all(self):
-        frames = list(self.buffer)
-        self.buffer = []
+        frames = list(self.fifo_buffer)
+        self.fifo_buffer = []
         return frames
-
-    def pop(self):
-        """
-        Pops an image from the buffer.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            img: The popped image from the buffer, or None if the buffer is empty.
-        """
-
-        if len(self.buffer) > 0:
-            return self.buffer.pop(0)
-        return
-
-    def shift(self):
-        """
-        Shifts the score by popping an image from the stack and updating the current image.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            img: The popped image from the stack, or None if the stack is empty.
-        """
-
-        img = self.pop()
-        if img is not None:
-            self.img = img
-        return img
-
-    def _animating(self):
-        """
-        Animate the score by shifting it and pausing between shifts.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            None
-
-        Examples:
-            anim = ScoreAnimation()
-            anim._animating()
-        """
-
-        secs = self.interval / 1000
-        while self.shift() is not None:
-            time.sleep(secs)
-        LOGGER.debug('Finished animating')
 
     def safe_update_score(self, step):
         score = self.score + step
@@ -177,16 +202,16 @@ class ScoreAnimation(object):
     def mk_frames(self, score: int = None):
         if score is None:
             score = self.score
-            LOGGER.warning(f'Score is not provided, use the current: {score}')
+            logger.warning(f'Score is not provided, use the current: {score}')
 
         # bg = Image.new(mode='RGB', size=(
         #     self.width, self.height), color='black')
 
         step = 1 if self.score < score else -1
 
-        if self.buffer:
-            self.buffer = []
-            LOGGER.warning(
+        if self.fifo_buffer:
+            self.fifo_buffer = []
+            logger.warning(
                 'The buffer is not empty, it means the animation is stopped by force')
 
         for s in range(self.score, score + np.sign(step), step):
@@ -212,12 +237,12 @@ class ScoreAnimation(object):
             draw.rectangle(
                 (self.scale((0.2, 0.9)), self.scale((0.2 + 0.6 * s / 100, 0.95))), fill='#331139')
 
-            # Append the buffer
-            self.buffer.append(img)
+            # Append to the buffer
+            self.fifo_buffer.append(img)
 
         self.score = score
 
-        Thread(target=self._animating, daemon=True).start()
+        Thread(target=self.animating_loop, daemon=True).start()
 
     def scale_x(self, x: float) -> int:
         return int(x * self.width)
@@ -229,7 +254,7 @@ class ScoreAnimation(object):
         x, y = xy
         return (self.scale_x(x), self.scale_y(y))
 
-    def tiny_window(self, img, ref=0, pairs=None):
+    def tiny_window(self, ref=0, pairs=None):
         """
         Creates a tiny window visualization by drawing reference and real-time curves on the given image.
 
@@ -256,7 +281,7 @@ class ScoreAnimation(object):
 
         n = len(pairs)
 
-        img = img.copy()
+        img = self.img.copy()
 
         left = 0.7
         right = 0.9

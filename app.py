@@ -22,7 +22,7 @@ import sys
 import time
 import threading
 
-from util import LOGGER, CONF, root_path
+from util import logger, project_conf, root_path
 from util.real_time_hid_reader import TargetDevice, RealTimeHidReader
 from util.qt_widget import QtWidgets, UserInterfaceWidget, QtCore, app
 
@@ -52,9 +52,9 @@ if __name__ == "__main__":
     path = root_path.joinpath(f"translate/{lang}")
     if translator.load(path.as_posix()):
         app.installTranslator(translator)
-        LOGGER.debug(f"Translator is loaded: {lang}: {path}")
+        logger.debug(f"Translator is loaded: {lang}: {path}")
     else:
-        LOGGER.error(f"Failed to load translator: {lang}: {path}")
+        logger.error(f"Failed to load translator: {lang}: {path}")
 
     widget = UserInterfaceWidget(app)
     widget.restart_reader(real_time_hid_reader)

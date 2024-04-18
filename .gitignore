@@ -2,6 +2,7 @@ log
 resource/hidapi-win.zip
 Data
 release
+img
 
 __pycache__
 dist

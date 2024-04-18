@@ -20,7 +20,7 @@ Functions:
 # Requirements and constants
 import json
 
-from . import root_path, LOGGER
+from . import root_path, logger
 
 
 # %% ---- 2023-09-18 ------------------------
@@ -32,7 +32,7 @@ class MyProtocol(object):
     def __init__(self):
         self.folder.mkdir(exist_ok=True, parents=True)
         self.default()
-        LOGGER.debug(f'Initialized {self.__class__}')
+        logger.debug(f'Initialized {self.__class__}')
 
     def default(self):
         """
@@ -68,7 +68,7 @@ class MyProtocol(object):
 
             self.protocols[k] = json.load(open(path, encoding='utf-8'))
 
-            LOGGER.debug(f'Loaded protocol: {k}, {self.protocols[k]}')
+            logger.debug(f'Loaded protocol: {k}, {self.protocols[k]}')
 
     def get_buffer(self, key):
         """
@@ -133,7 +133,7 @@ class MyProtocol(object):
 
             json.dump(self.protocols[k], open(p, 'w'))
 
-            LOGGER.debug(f'Saved protocol: {k} | {self.protocols[k]}')
+            logger.debug(f'Saved protocol: {k} | {self.protocols[k]}')
 
             break
 

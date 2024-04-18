@@ -4,6 +4,9 @@ display:
   max_value: 2000
   min_value: -10
   ref_value: 500
+  two_step_animation_mean_threshold: 100
+  two_step_animation_std_threshold: 100
+  two_step_animation_window_length: 1.0
   display_ref_flag: true
 device:
   sample_rate: 125

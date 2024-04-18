@@ -22,13 +22,17 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from omegaconf import OmegaConf
-from loguru import logger as LOGGER
+from loguru import logger
 
 
 # %% ---- 2023-09-17 ------------------------
 # Function and class
 
+#  Do not use Path(__file__) in the released version,
+#  since it detects the runtime path of the exe, rather the cwd
 root_path = Path(__file__).parent.parent
+
+# Use this instead, it is more safety
 root_path = Path(sys.argv[0]).parent
 
 # %% ---- 2023-09-17 ------------------------
@@ -71,15 +75,15 @@ setup = dict(
 )
 
 
-CONF = OmegaConf.create(setup)
-print(OmegaConf.to_yaml(CONF), file=open(conf_path, 'w'))
+project_conf = OmegaConf.create(setup)
+print(OmegaConf.to_yaml(project_conf), file=open(conf_path, 'w'))
 
 
 # %% ---- 2023-09-17 ------------------------
 # logging
 
-LOGGER.add('log/pressure-feedback.log', rotation='1 MB')
-LOGGER.info(f'Project starts with: {CONF}')
+logger.add('log/pressure-feedback.log', rotation='1 MB')
+logger.info(f'Project starts with: {project_conf}')
 
 
 # %% ---- 2023-09-17 ------------------------
