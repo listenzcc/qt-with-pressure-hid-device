@@ -20,11 +20,10 @@ Functions:
 # Requirements and constants
 import sys
 import time
-import threading
 
-from util import logger, project_conf, root_path
+from util import logger, root_path
 from util.real_time_hid_reader import TargetDevice, RealTimeHidReader
-from util.qt_widget import QtWidgets, UserInterfaceWidget, QtCore, app
+from util.qt_widget import UserInterfaceWidget, QtCore, app
 
 # from util.qt_widget import QLineSeries, QPointF
 # from rich import inspect

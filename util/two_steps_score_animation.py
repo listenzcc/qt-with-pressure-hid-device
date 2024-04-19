@@ -163,7 +163,6 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         # --------------------
         # Load frames
         n = 60
-        # n = 6
         for j in tqdm(range(1, 1+n), f'Loading resources: {name}'):
             img = _change_img_1(Image.open(folder.joinpath(f'frames/{j}.jpg')))
             self.images_2nd.append(img)
@@ -188,12 +187,42 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         self.mk_frames(state_before, state_after)
 
     def mk_frames(self, state_before, state_after):
-        if state_before['state'] == '1st' and state_after['state'] == '1st':
+
+        n_frames = 10
+
+        if state_after['state'] == '2nd':
+            score1 = state_before['score_2nd']
+            score2 = state_after['score_2nd']
+            diff = score2 - score1
+
+            n = len(self.images_2nd)-1
+            # idx1 = int(n * score1 / 100)
+            # idx2 = int(n * score2 / 100)
+
+            for s in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
+                idx = int(n * s / 100)
+                img = self.images_2nd[idx].resize((self.width, self.height))
+
+                draw = ImageDraw.Draw(img, mode='RGB')
+
+                # --------------------
+                r = 0.04
+                x = 0.5
+                y = 0.8
+                draw.rectangle((
+                    self.scale((x-r, y-r)), self.scale((x+r, y+r))
+                ), fill='#aa0000')
+
+                self.fifo_buffer.append(img)
+
+        if state_after['state'] == '1st':
             score1 = state_before['score_1st']
             score2 = state_after['score_1st']
+            diff = score2 - score1
 
-            for s in range(int(score1), int(score2), 1 if score1 < score2 else -1):
-                img = Image.new(mode='RGB', size=(self.width, self.height))
+            for s in np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
+                # img = Image.new(mode='RGB', size=(self.width, self.height))
+                img = self.images_2nd[0].resize((self.width, self.height))
 
                 draw = ImageDraw.Draw(img, mode='RGB')
 
@@ -207,13 +236,21 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
 
                 # --------------------
                 r = 0.04
+                x = 0.5 + 0.5 * score2 / 200
+                y = 0.8
+                draw.rectangle((
+                    self.scale((x-r, y-r)), self.scale((x+r, y+r))
+                ), outline='#aa0000')
+
+                # --------------------
+                r = 0.04
                 x = 0.5 + 0.5 * s / 200
                 y = 0.8
                 draw.rectangle((
                     self.scale((x-r, y-r)), self.scale((x+r, y+r))
                 ), fill='#aa0000')
 
-                self.fifo_buffer.append(img.resize((self.width, self.height)))
+                self.fifo_buffer.append(img)
 
         # for img in self.images_2nd:
         #     self.fifo_buffer.append(img.resize((self.width, self.height)))
