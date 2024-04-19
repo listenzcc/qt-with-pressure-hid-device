@@ -23,16 +23,16 @@ Functions:
 
 # %% ---- 2024-04-17 ------------------------
 # Requirements and constants
-import contextlib
-import time
 import numpy as np
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from threading import Thread
+
 from typing import Any
 from tqdm.auto import tqdm
 
 from . import logger, project_conf, root_path
+from .automatic_animation import AutomaticAnimation
 
 
 # %% ---- 2024-04-17 ------------------------
@@ -40,20 +40,19 @@ from . import logger, project_conf, root_path
 
 # --------------------------------------------------------------------------------
 class TwoStepScorer(object):
-    mean_ref_value = project_conf['display']['ref_value']
-    mean_threshold = project_conf['display']['two_step_animation_mean_threshold']
-    std_threshold = project_conf['display']['two_step_animation_std_threshold']
-    window_length = project_conf['display']['two_step_animation_window_length']
+    ref_value = project_conf['display']['ref_value']
+    mean_threshold = 10  # g
+    std_threshold = 10  # g
 
     state = '1st'
     score_1st_step = 0
     score_2nd_step = 0
 
     def __init__(self):
-        self.reset()
+        self.reset_scores()
         logger.info("Initialized TwoStepScorer")
 
-    def reset(self):
+    def reset_scores(self):
         self.state = '1st'
         self.score_1st_step = 0
         self.score_2nd_step = 0
@@ -68,26 +67,32 @@ class TwoStepScorer(object):
 
     def _limit_scores(self):
         '''Keep the scores inside the range of [0, 100]'''
-        self.score_1st_step = min(100, max(0, self.score_1st_step))
+        # self.score_1st_step = min(100, max(0, self.score_1st_step))
         self.score_2nd_step = min(100, max(0, self.score_2nd_step))
 
     def _update_score(self, data: Any):
+        if data is None:
+            return self.get_current_state()
+
+        if len(data) == 0:
+            return self.get_current_state()
+
+        mean = data[-1][0]
+        std = data[-1][1]
+
+        logger.debug(f'Update score, input is mean={mean}, std={std}')
+
         # --------------------
         # Current state is 1st
         # Update it with mean value
         if self.state == '1st':
             # Update the score
-            mean = np.mean(data)
-            diff = np.abs(mean - self.mean_ref_value)
-            # Update rule:
-            # It is basically the linear rule, but never
-            # diff=  0 -> score=100
-            # diff=100 -> score=0
-            score = 100 - diff
+            score = mean - self.ref_value
             self.score_1st_step = score
             self._limit_scores()
 
             # The mean value meets the threshold, enter into the 2nd step
+            diff = np.abs(score)
             if diff < self.mean_threshold:
                 self.state = '2nd'
                 self.score_2nd_step = 0
@@ -99,19 +104,14 @@ class TwoStepScorer(object):
         # Current state is 2nd
         # Update it with std value
         if self.state == '2nd':
-            mean = np.std(data)
-            diff = np.abs(mean - self.mean_ref_value)
+            diff = np.abs(mean - self.ref_value)
 
             # --------------------
             # Check if the mean value fails to meet the threshold
             # if so, back to the 1st state
             if diff > self.mean_threshold:
                 # Update rule:
-                # It is basically the linear rule, but never
-                # diff=  0 -> score=100
-                # diff=100 -> score=0
-                score = 100 - diff
-                # Set the 1st step score as the correct value
+                score = mean - self.ref_value
                 self.score_1st_step = score
                 # Reset the 2nd step score to 0
                 self.score_2nd_step = 0
@@ -125,7 +125,6 @@ class TwoStepScorer(object):
             # if the mean value is under the threshold,
             # update the score using std
             else:
-                std = np.std(data)
                 if std < self.std_threshold:
                     self.score_2nd_step += 10
                 else:
@@ -135,93 +134,6 @@ class TwoStepScorer(object):
 
             return self.get_current_state()
 
-# --------------------------------------------------------------------------------
-
-
-class AutomaticAnimation(object):
-    width = 800
-    height = 600
-
-    font = ImageFont.truetype(
-        root_path.joinpath('font/MSYHL.ttc').as_posix(),
-        size=width//20)
-
-    interval = 50  # ms, 50 ms refers 20 frames per second
-    img = Image.new(mode='RGB', size=(width, height))
-    fifo_buffer = []
-
-    animating_flag = False
-
-    @contextlib.contextmanager
-    def _safe_animating_flag(self):
-        try:
-            self.animating_flag = True
-            yield
-        finally:
-            self.animating_flag = False
-
-    def animating_loop(self):
-        """
-        Perform animation by shifting the buffer.
-        It keeps going in its own path, regardless others.
-
-        ! The process updates the self.img in its own pace,
-        ! so the UI only needs to fetch the self.img in UI's own pace.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            None
-
-        Examples:
-            anim = ScoreAnimation()
-            anim._animating()
-        """
-
-        secs = self.interval / 1000
-
-        # Prevent repeated animation
-        if self.animating_flag:
-            logger.debug('Animating already on the loop')
-            return
-
-        with self._safe_animating_flag():
-            while self._shift() is not None:
-                time.sleep(secs)
-
-        logger.debug('Finished animating')
-
-    def _shift(self):
-        """
-        Shifts the score by popping an image from the stack and updating the current image.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            img: The popped image from the stack, or None if the stack is empty.
-        """
-
-        img = self._pop()
-        if img is not None:
-            self.img = img
-        return img
-
-    def _pop(self):
-        """
-        Pops an image from the buffer.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            img: The popped image from the buffer, or None if the buffer is empty.
-        """
-
-        if len(self.fifo_buffer) > 0:
-            return self.fifo_buffer.pop(0)
-        return
 
 # --------------------------------------------------------------------------------
 
@@ -234,40 +146,82 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         self.load_cat_climbs_tree_resources()
         super(TwoStepScore_Animation_CatLeavesSubmarine, self).__init__()
 
+    def reset(self):
+        self.fifo_buffer = []
+        self.reset_scores()
+
     def load_cat_climbs_tree_resources(self):
         name = 'cat-leaves-submarine'
         folder = root_path.joinpath(f'img/{name}')
 
-        for j in tqdm(range(1, 61), f'Loading resources: {name}'):
-            img = Image.open(folder.joinpath(f'frames/{j}.jpg')).convert('RGB')
-            img.resize((self.width, self.height))
-            self.images_2nd.append(img)
-        logger.debug(f'Loaded 60 frames of {name}')
+        def _change_img_1(img):
+            return img.convert('RGB').resize((self.width, self.height))
 
-        submarine_image = Image.open(
-            folder.joinpath('parts/潜水艇.png')).convert('RGBA')
+        def _change_img_2(img):
+            return img.convert('RGBA').resize((self.width//4, self.height//4))
+
+        # --------------------
+        # Load frames
+        n = 60
+        # n = 6
+        for j in tqdm(range(1, 1+n), f'Loading resources: {name}'):
+            img = _change_img_1(Image.open(folder.joinpath(f'frames/{j}.jpg')))
+            self.images_2nd.append(img)
+        logger.debug(f'Loaded {n} frames of {name}')
+
+        # --------------------
+        # Load parts
+        submarine_image = _change_img_2(
+            Image.open(folder.joinpath('parts/潜水艇.png')))
         self.submarine_image = submarine_image
-        logger.debug(f'Loaded submarine image: {submarine_image}')
+        logger.debug(f'Loaded part of submarine: {submarine_image}')
 
     def update_score(self, data: Any = None):
         state_before = self.get_current_state()
 
         # If received no data, the state is unchanged,
         # the state_after equals to state_before
-        if data is None:
-            state_after = state_before
-        else:
-            state_after = self._update_score(data)
+        state_after = state_before if data is None else self._update_score(
+            data)
 
         logger.debug(f'Updated state from {state_before} to {state_after}')
         self.mk_frames(state_before, state_after)
 
     def mk_frames(self, state_before, state_after):
-        for img in self.images_2nd:
-            self.fifo_buffer.append(img.resize((self.width, self.height)))
+        if state_before['state'] == '1st' and state_after['state'] == '1st':
+            score1 = state_before['score_1st']
+            score2 = state_after['score_1st']
+
+            for s in range(int(score1), int(score2), 1 if score1 < score2 else -1):
+                img = Image.new(mode='RGB', size=(self.width, self.height))
+
+                draw = ImageDraw.Draw(img, mode='RGB')
+
+                # --------------------
+                r = 0.05
+                x = 0.5
+                y = 0.8
+                draw.rectangle((
+                    self.scale((x-r, y-r)), self.scale((x+r, y+r))
+                ), outline='#aaaaaa')
+
+                # --------------------
+                r = 0.04
+                x = 0.5 + 0.5 * s / 200
+                y = 0.8
+                draw.rectangle((
+                    self.scale((x-r, y-r)), self.scale((x+r, y+r))
+                ), fill='#aa0000')
+
+                self.fifo_buffer.append(img.resize((self.width, self.height)))
+
+        # for img in self.images_2nd:
+        #     self.fifo_buffer.append(img.resize((self.width, self.height)))
 
         Thread(target=self.animating_loop, daemon=True).start()
-        pass
+
+    def scale(self, xy: tuple) -> tuple:
+        return self.scale_xy_ratio(xy)
 
 
 # %% ---- 2024-04-17 ------------------------

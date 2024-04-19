@@ -20,7 +20,6 @@ Functions:
 # Requirements and constants
 import json
 import time
-import random
 import threading
 import numpy as np
 
@@ -28,7 +27,6 @@ from pathlib import Path
 from datetime import datetime
 from threading import Thread
 
-from PySide2.QtWidgets import QApplication
 import pyqtgraph as pg
 from PySide2 import QtCore, QtWidgets
 from PySide2.QtGui import QFont
@@ -340,8 +338,7 @@ class SignalMonitorWidget(pg.PlotWidget):
         the curve2 is the delayed pressure curve.
 
         Args:
-            pairs_delay (list): The array of delayed pressure curve,
-                                the element is like (value,..., timestamp)
+            pairs_delay (list): The array of delayed pressure curve, the element is like (value,..., timestamp)
         """
         ys = [e[0] for e in pairs_delay]
         ts = [e[-1] for e in pairs_delay]
@@ -510,12 +507,16 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
     my_protocol = MyProtocol()
     data_folder_path = root_path.joinpath("Data")
 
-    next_10s_step = 3
-    next_10s = next_10s_step
+    animation_time_step_length = 3  # seconds
+    next_animation_update_seconds = animation_time_step_length
 
     animation_feedback_type = "Avg."
     animation_feedback_types = ["Avg.", "Std."]
     animation_feedback_threshold = 10
+
+    # --------------------
+    narrow_panel_width = 160
+    wide_panel_width = 240
 
     def __init__(self, app, translator=None):
         # super(MyWidget, self).__init__()
@@ -650,7 +651,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             )
 
         # Reset the next_10s timer
-        self.next_10s = self.next_10s_step
+        self.next_animation_update_seconds = self.animation_time_step_length
 
         reader.delay_seconds = self.delay_seconds
 
@@ -666,8 +667,15 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.timer.stop()
             logger.warning(f"Stopped existing timer {self.timer}")
 
-        def update():
+        def core_update_function_for_reading_data():
             pairs = reader.peek_by_seconds(self.window_length_seconds)
+
+            if pairs is not None:
+                if len(pairs) > 0:
+                    self.display_inputs['pressure_value_label'].display(
+                        int(pairs[-1][0]))
+
+            # ! The buffer_delay is not the delayed buffer, but its statistic, including avg. and std. values
             pairs_delay = reader.peek_by_seconds(
                 self.window_length_seconds, peek_delay=True
             )
@@ -681,7 +689,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.update_graph(pairs, pairs_delay)
 
         timer = QtCore.QTimer()
-        timer.timeout.connect(update)
+        timer.timeout.connect(core_update_function_for_reading_data)
         timer.start()
 
         # Handle the timer, so I can stop it.
@@ -741,7 +749,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         self.device_reader.start()
 
         # Reset the next_10s timer
-        self.next_10s = self.next_10s_step
+        self.next_animation_update_seconds = self.animation_time_step_length
 
     def save_data(self):
         """
@@ -814,7 +822,9 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             # Correction
             button_0g=QtWidgets.QPushButton(_tr("Ruler correction 0g")),
             button_200g=QtWidgets.QPushButton(_tr("Ruler correction 200g")),
-            button_offset_0g=QtWidgets.QPushButton(_tr("Zero correction 0g"))
+            button_offset_0g=QtWidgets.QPushButton(_tr("Zero correction 0g")),
+            # Real-time pressure value display
+            pressure_value_label=QtWidgets.QLCDNumber()
         )
 
         def pen2hex(pen):
@@ -824,10 +834,19 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # --------------------------------------------------------------------------------
         groupbox = QtWidgets.QGroupBox(_tr("Display setup"))
+        groupbox.setFixedWidth(self.narrow_panel_width)
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
         main_box_layout = QtWidgets.QVBoxLayout()
         groupbox.setLayout(main_box_layout)
+
+        # --------------------------------------------------------------------------------
+        # Real-time pressure value display
+        label = inputs['pressure_value_label']
+        label.setStyleSheet("""QLCDNumber
+                            { background-color: black; color: red; }""")
+        # label.setFixedWidth(60)
+        label.display(0)
 
         # --------------------------------------------------------------------------------
         # Playback
@@ -839,7 +858,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             _ref_value = self.ref_value
             _show_grid_flag = self.display_inputs['grid_toggle'].isChecked()
 
-            self._setup_display_modes_inside_monitor('Realtime')
+            self._setup_frame_display_modes_inside_monitor('Realtime')
             self.signal_monitor_widget.enter_curve_mode(
                 _ref_value, _show_grid_flag, _show_grid_flag)
 
@@ -898,14 +917,11 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         inputs["display_mode"].addItems(self.display_modes)
         inputs["display_mode"].setCurrentText(self.display_mode)
 
-        main_box_layout.addWidget(inputs["display_mode"])
-
         # --------------------------------------------------------------------------------
         # zone1
-        zone1 = QtWidgets.QGroupBox(_tr("Curve (realtime)"))
-        main_box_layout.addWidget(zone1)
+        zone_realtime_setup = QtWidgets.QGroupBox(_tr("Curve (realtime)"))
         vbox1 = QtWidgets.QVBoxLayout()
-        zone1.setLayout(vbox1)
+        zone_realtime_setup.setLayout(vbox1)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox1.addLayout(hbox)
@@ -917,9 +933,9 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         hbox.addWidget(QtWidgets.QLabel(_tr("Width")))
         hbox.addWidget(inputs["line1_width"])
 
-        inputs["line1_width"].setValue(2)
         inputs["line1_width"].setMinimum(1)
         inputs["line1_width"].setMaximum(10)
+        inputs["line1_width"].setValue(2)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox1.addLayout(hbox)
@@ -928,10 +944,9 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # --------------------------------------------------------------------------------
         # zone2
-        zone2 = QtWidgets.QGroupBox(_tr("Curve (delay)"))
-        main_box_layout.addWidget(zone2)
+        zone_delayed_setup = QtWidgets.QGroupBox(_tr("Curve (delay)"))
         vbox2 = QtWidgets.QVBoxLayout()
-        zone2.setLayout(vbox2)
+        zone_delayed_setup.setLayout(vbox2)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox2.addLayout(hbox)
@@ -948,14 +963,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         hbox.addWidget(QtWidgets.QLabel(_tr("Width")))
         hbox.addWidget(inputs["line2_width"])
 
-        inputs["line2_width"].setValue(2)
         inputs["line2_width"].setMinimum(1)
         inputs["line2_width"].setMaximum(10)
+        inputs["line2_width"].setValue(2)
 
         # --------------------------------------------------------------------------------
-        inputs["line2_delay"].setValue(10)
         inputs["line2_delay"].setMinimum(1)
         inputs["line2_delay"].setMaximum(10)
+        inputs["line2_delay"].setValue(self.delay_seconds)
 
         def _change_delay(delay):
             self.delay_seconds = delay
@@ -968,7 +983,6 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         # zone_animation
         zone_animation = QtWidgets.QGroupBox(_tr("Animation opt."))
         zone_animation.setCheckable(True)
-        main_box_layout.addWidget(zone_animation)
         vbox_animation = QtWidgets.QVBoxLayout()
         zone_animation.setLayout(vbox_animation)
 
@@ -1009,15 +1023,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         zone_two_steps_animation = QtWidgets.QGroupBox(
             _tr('Two steps animation opt.'))
         zone_two_steps_animation.setCheckable(True)
-        main_box_layout.addWidget(zone_two_steps_animation)
 
         # --------------------------------------------------------------------------------
         # zone3
-        zone3 = inputs["zone3"]
-        zone3.setCheckable(True)
-        main_box_layout.addWidget(zone3)
+        zone_reference_setup = inputs["zone3"]
+        zone_reference_setup.setCheckable(True)
         vbox3 = QtWidgets.QVBoxLayout()
-        zone3.setLayout(vbox3)
+        zone_reference_setup.setLayout(vbox3)
 
         hbox = QtWidgets.QHBoxLayout()
         vbox3.addLayout(hbox)
@@ -1035,9 +1047,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         # --------------------
         # Ref. line
         hbox.addWidget(QtWidgets.QLabel(_tr("Ref. value")))
-        label = QtWidgets.QLabel("500")
-        hbox.addWidget(label)
-        vbox3.addWidget(inputs["line3_ref_value_spin"])
+        hbox.addWidget(inputs["line3_ref_value_spin"])
         vbox3.addWidget(inputs["line3_ref_value"])
 
         inputs["line3_width"].setMinimum(1)
@@ -1046,25 +1056,27 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         inputs["line3_ref_value"].setMinimum(1)
         inputs["line3_ref_value"].setMaximum(2000)
-        inputs["line3_ref_value"].setValue(500)
+        inputs["line3_ref_value"].setValue(self.ref_value)
+        inputs["line3_ref_value"].setFixedSize(80, 80)
 
         inputs["line3_ref_value_spin"].setMinimum(1)
         inputs["line3_ref_value_spin"].setMaximum(2000)
-        inputs["line3_ref_value_spin"].setValue(500)
+        inputs["line3_ref_value_spin"].setValue(self.ref_value)
 
         # --------------------
         # Link line3_ref_value and line3_ref_value_spin
+
         def _change_ref_value(v):
             self.ref_value = v
+            tssa_cls.ref_value = v
             inputs['line3_ref_value_spin'].setValue(v)
             self.signal_monitor_widget.ellipse4_size_changed(v)
-            label.setText("{}".format(v))
 
         def _change_ref_value_spin(v):
             self.ref_value = v
+            tssa_cls.ref_value = v
             inputs['line3_ref_value'].setValue(v)
             self.signal_monitor_widget.ellipse4_size_changed(v)
-            label.setText("{}".format(v))
 
         inputs["line3_ref_value"].valueChanged.connect(_change_ref_value)
         inputs["line3_ref_value_spin"].valueChanged.connect(
@@ -1073,15 +1085,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         def _check_zone3(b):
             self.display_ref_flag = b
 
-        zone3.toggled.connect(_check_zone3)
+        zone_reference_setup.toggled.connect(_check_zone3)
 
         # --------------------------------------------------------------------------------
-        zone4 = QtWidgets.QGroupBox(_tr("Correction"))
-        zone4.setCheckable(True)
-        zone4.setChecked(False)
-        main_box_layout.addWidget(zone4)
+        zone_weight_correction = QtWidgets.QGroupBox(_tr("Correction"))
+        zone_weight_correction.setCheckable(True)
+        zone_weight_correction.setChecked(False)
         vbox4 = QtWidgets.QVBoxLayout()
-        zone4.setLayout(vbox4)
+        zone_weight_correction.setLayout(vbox4)
 
         vbox4.addWidget(inputs["button_0g"])
         vbox4.addWidget(inputs["button_200g"])
@@ -1239,54 +1250,78 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         inputs["line3_width"].valueChanged.connect(_change_width3)
 
         # --------------------------------------------------------------------------------
-        def _change_display_mode(mode):
-            self.display_mode = mode
+        def _enter_into_display_mode(display_mode: str):
+            self.display_mode = display_mode
 
-            # zone1: option for realtime curve
-            # zone2: option for delayed curve
-            # zone3: option for reference pressure value
-
-            # zone4: weight correction zone
-
-            # zone_animation: option for animation
-            # zone_two_steps_animation: option for two steps animation
-
-            if mode == "Realtime":
-                zone1.setVisible(True)
-                zone2.setVisible(False)
-                zone3.setVisible(True)
-                zone4.setVisible(True)
+            if display_mode == "Realtime":
+                zone_realtime_setup.setVisible(True)
+                zone_delayed_setup.setVisible(False)
+                zone_reference_setup.setVisible(True)
+                zone_weight_correction.setVisible(True)
                 zone_animation.setVisible(False)
                 zone_two_steps_animation.setVisible(False)
 
-            if mode == "Delayed":
-                zone1.setVisible(True)
-                zone2.setVisible(True)
-                zone3.setVisible(True)
-                zone4.setVisible(False)
+                self.signal_monitor_widget.getPlotItem().showAxis('left')
+                self.signal_monitor_widget.getPlotItem().showAxis('bottom')
+
+            if display_mode == "Delayed":
+                zone_realtime_setup.setVisible(True)
+                zone_delayed_setup.setVisible(True)
+                zone_reference_setup.setVisible(True)
+                zone_weight_correction.setVisible(False)
                 zone_animation.setVisible(False)
                 zone_two_steps_animation.setVisible(False)
 
-            if mode == "Animation fit":
-                zone1.setVisible(False)
-                zone2.setVisible(True)
-                zone3.setVisible(True)
-                zone4.setVisible(False)
+                self.signal_monitor_widget.getPlotItem().showAxis('left')
+                self.signal_monitor_widget.getPlotItem().showAxis('bottom')
+
+            if display_mode == "Animation fit":
+                zone_realtime_setup.setVisible(False)
+                zone_delayed_setup.setVisible(True)
+                zone_reference_setup.setVisible(True)
+                zone_weight_correction.setVisible(False)
                 zone_animation.setVisible(True)
                 zone_two_steps_animation.setVisible(False)
 
-            if mode == 'Cat leaves submarines':
-                zone1.setVisible(False)
-                zone2.setVisible(True)
-                zone3.setVisible(True)
-                zone4.setVisible(False)
+                self.signal_monitor_widget.getPlotItem().hideAxis('left')
+                self.signal_monitor_widget.getPlotItem().hideAxis('bottom')
+                sa.reset()
+
+            if display_mode == 'Cat leaves submarines':
+                zone_realtime_setup.setVisible(False)
+                zone_delayed_setup.setVisible(True)
+                zone_reference_setup.setVisible(True)
+                zone_weight_correction.setVisible(False)
                 zone_animation.setVisible(False)
                 zone_two_steps_animation.setVisible(True)
 
-        main_box_layout.addWidget(zone_playback)
+                self.signal_monitor_widget.getPlotItem().hideAxis('left')
+                self.signal_monitor_widget.getPlotItem().hideAxis('bottom')
+                tssa_cls.reset()
 
-        inputs["display_mode"].currentTextChanged.connect(_change_display_mode)
-        _change_display_mode(self.display_mode)
+        inputs["display_mode"].currentTextChanged.connect(
+            _enter_into_display_mode)
+        _enter_into_display_mode(self.display_mode)
+
+        # --------------------------------------------------------------------------------
+        # Layout the zones
+        # zone setup
+        # zone_realtime_setup: option for realtime curve
+        # zone_delayed_setup: option for delayed curve
+        # zone_reference_setup: option for reference pressure value
+        # zone_weight_correction: weight correction zone
+        # zone_animation: option for animation
+        # zone_two_steps_animation: option for two steps animation
+        # zone_playback: option for playback
+        main_box_layout.addWidget(inputs["display_mode"])
+        main_box_layout.addWidget(zone_realtime_setup)
+        main_box_layout.addWidget(zone_delayed_setup)
+        main_box_layout.addWidget(zone_animation)
+        main_box_layout.addWidget(zone_two_steps_animation)
+        main_box_layout.addWidget(zone_reference_setup)
+        main_box_layout.addWidget(zone_weight_correction)
+        main_box_layout.addWidget(zone_playback)
+        main_box_layout.addWidget(inputs['pressure_value_label'])
 
         return inputs
 
@@ -1328,6 +1363,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # --------------------------------------------------------------------------------
         groupbox = QtWidgets.QGroupBox(_tr("Experiment setup"))
+        groupbox.setFixedWidth(self.wide_panel_width)
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
         vbox = QtWidgets.QVBoxLayout()
@@ -1535,6 +1571,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # --------------------------------------------------------------------------------
         groupbox = QtWidgets.QGroupBox(_tr("Subject setup"))
+        groupbox.setFixedWidth(self.narrow_panel_width)
         groupbox.setCheckable(True)
         layout.addWidget(groupbox)
         vbox = QtWidgets.QVBoxLayout()
@@ -1695,13 +1732,16 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         self.signal_monitor_widget.update_curve2(pairs_delay)
 
     def _resize_animation_img(self):
-        w = self.signal_monitor_widget.animation_img.width()
-        pw = self.signal_monitor_widget.animation_img.pixelWidth()
-        h = self.signal_monitor_widget.animation_img.height()
-        ph = self.signal_monitor_widget.animation_img.pixelHeight()
+        o = self.signal_monitor_widget
+        width = int(o.width() - 2)
+        height = int(o.height() - 32)
 
-        width = int(w / pw)
-        height = int(h / ph)
+        # --------------------
+        # Check if the width and height are correct
+        # Desired output is (1.0, 1.0)
+        # print((
+        #     self.signal_monitor_widget.animation_img.pixelWidth(),
+        #     self.signal_monitor_widget.animation_img.pixelHeight()))
 
         # --------------------
         sa.width = width
@@ -1746,16 +1786,36 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         return score
 
-    def update_animation_img(self, flag_10s: bool, pairs=None):
+    def update_cat_leaves_submarine_animation(self, need_update_flag: bool, pairs_delay=None):
         # Enter into the animation mode
         self.signal_monitor_widget.animation_mode()
 
-        # Update the score if-and-only-if flag_10s is set
-        if flag_10s:
+        # Update the score if-and-only-if the flag is set
+        if need_update_flag:
             self._resize_animation_img()
 
-            if pairs:
-                score = self._compare_animation_feedback(pairs[-1])
+            Thread(
+                target=tssa_cls.update_score,
+                args=(pairs_delay,), daemon=True).start()
+
+        # Always update the tiny window
+        # Draw the tiny window for pressure feedback
+        mat = pil2rgb(tssa_cls.tiny_window(
+            ref=self.ref_value, data=pairs_delay))
+        self.signal_monitor_widget.animation_img.setImage(
+            mat[::-1].transpose([1, 0, 2])
+        )
+
+    def update_animation_img(self, need_update_flag: bool, pairs_delay=None):
+        # Enter into the animation mode
+        self.signal_monitor_widget.animation_mode()
+
+        # Update the score if-and-only-if the flag is set
+        if need_update_flag:
+            self._resize_animation_img()
+
+            if pairs_delay:
+                score = self._compare_animation_feedback(pairs_delay[-1])
             else:
                 score = sa.score
 
@@ -1767,14 +1827,16 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # Always update the tiny window
         # Draw the tiny window for pressure feedback
-        mat = pil2rgb(sa.tiny_window(ref=self.ref_value, pairs=pairs))
+        mat = pil2rgb(sa.tiny_window(ref=self.ref_value, data=pairs_delay))
         self.signal_monitor_widget.animation_img.setImage(
             mat[::-1].transpose([1, 0, 2])
         )
 
-    def _setup_display_modes_inside_monitor(self, display_mode: str = None):
+    def _setup_frame_display_modes_inside_monitor(self, display_mode: str = None):
         """
         Setup visible value for the curves according to the current self.display_mode
+
+        ! It is called in the loop, DO NOT do anything time consuming
         """
         if display_mode is None:
             display_mode = self.display_mode
@@ -1823,6 +1885,16 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.current_block_remainder_text.setVisible(
                 False)
 
+        if display_mode == "Cat leaves submarines":
+            self.signal_monitor_widget.curve1.setVisible(False)
+            self.signal_monitor_widget.curve2.setVisible(False)
+            self.signal_monitor_widget.curve3.setVisible(False)
+            self.signal_monitor_widget.ellipse4.setVisible(False)
+            self.signal_monitor_widget.ellipse5.setVisible(False)
+            self.signal_monitor_widget.animation_img.setVisible(True)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(
+                False)
+
     def update_graph(self, pairs: list, pairs_delay: list):
         """
         Update the graph as the very fast loop
@@ -1830,6 +1902,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         Args:
             pairs (list): The incoming data from the hid device. Defaults to None.
         """
+
         current_block = self.update_signal_experiment_status(pairs)
 
         # Doing nothing is current block is None
@@ -1837,7 +1910,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             return
 
         # Automatically toggle the display status of the graph components
-        self._setup_display_modes_inside_monitor()
+        self._setup_frame_display_modes_inside_monitor()
 
         # The t0, t1 is the start, stop time of the incoming data
         # The block_name is one of ['Real', 'Fake', 'Empty']
@@ -1848,6 +1921,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         # it makes sure the fake pressure value is on the head of the array.
         pairs = [
             p[2:]
+            # Check if the current time point is inside the fake blocks
             if any(
                 p[-1] > fb["start"] and p[-1] < fb["stop"] for fb in self.fake_blocks
             )
@@ -1855,12 +1929,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             for p in pairs
         ]
 
+        # ! The buffer_delay is not the delayed buffer, but its statistic, including avg. and std. values
         # The buffer_delay's row is:
-        # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestampe)
+        # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestamp)
         # This uses the columns for both avg. (0|1), std. (2|3) values, and timestamp (4)
         # The output pairs_delay's row is (avg, std, timestamp)
         pairs_delay = [
             (p[1], p[3], p[4])
+            # Check if the current time point is inside the fake blocks
             if any(
                 p[-1] + self.delay_seconds > fb["start"]
                 and p[-1] + self.delay_seconds < fb["stop"]
@@ -1872,14 +1948,29 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # Display the animation img
         if self.display_mode == "Animation fit":
-            flag_10s = False
+            need_update_flag = False
 
-            while t1 > self.next_10s:
-                logger.debug(f"The 10s gap is reached, {self.next_10s}")
-                self.next_10s += self.next_10s_step
-                flag_10s = True
+            if t1 > self.next_animation_update_seconds:
+                logger.debug(
+                    f"Reached animation update time, {self.next_animation_update_seconds}")
+                self.next_animation_update_seconds += self.animation_time_step_length
+                need_update_flag = True
 
-            self.update_animation_img(flag_10s, pairs_delay)
+            self.update_animation_img(need_update_flag, pairs_delay)
+            return
+
+        # Display the cat-leaves-submarines animation
+        if self.display_mode == 'Cat leaves submarines':
+            need_update_flag = False
+
+            if t1 > self.next_animation_update_seconds:
+                logger.debug(
+                    f'Reached animation update time, {self.next_animation_update_seconds}')
+                self.next_animation_update_seconds += self.animation_time_step_length
+                need_update_flag = True
+
+            self.update_cat_leaves_submarine_animation(
+                need_update_flag, pairs_delay)
             return
 
         # Enter the curve mode for the monitor

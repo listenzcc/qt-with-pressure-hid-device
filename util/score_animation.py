@@ -18,17 +18,14 @@ Functions:
 
 # %% ---- 2023-10-30 ------------------------
 # Requirements and constants
-import contextlib
-import cv2
-import time
 import numpy as np
 
 from threading import Thread
 
-from rich import print, inspect
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from . import logger, root_path
+from .automatic_animation import AutomaticAnimation
 
 
 # %% ---- 2023-10-30 ------------------------
@@ -37,92 +34,6 @@ def pil2rgb(img):
     mat = np.array(img, dtype=np.uint8)
     # mat = cv2.cvtColor(mat, cv2.COLOR_BGR2RGB)
     return mat
-
-
-class AutomaticAnimation(object):
-    width = 800
-    height = 600
-
-    font = ImageFont.truetype(
-        root_path.joinpath('font/MSYHL.ttc').as_posix(),
-        size=width//20)
-
-    interval = 50  # ms, 50 ms refers 20 frames per second
-    img = Image.new(mode='RGB', size=(width, height))
-    fifo_buffer = []
-
-    animating_flag = False
-
-    @contextlib.contextmanager
-    def _safe_animating_flag(self):
-        try:
-            self.animating_flag = True
-            yield
-        finally:
-            self.animating_flag = False
-
-    def animating_loop(self):
-        """
-        Perform animation by shifting the buffer.
-        It keeps going in its own path, regardless others.
-
-        ! The process updates the self.img in its own pace,
-        ! so the UI only needs to fetch the self.img in UI's own pace.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            None
-
-        Examples:
-            anim = ScoreAnimation()
-            anim._animating()
-        """
-
-        secs = self.interval / 1000
-
-        # Prevent repeated animation
-        if self.animating_flag:
-            logger.debug('Animating already on the loop')
-            return
-
-        with self._safe_animating_flag():
-            while self._shift() is not None:
-                time.sleep(secs)
-
-        logger.debug('Finished animating')
-
-    def _shift(self):
-        """
-        Shifts the score by popping an image from the stack and updating the current image.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            img: The popped image from the stack, or None if the stack is empty.
-        """
-
-        img = self._pop()
-        if img is not None:
-            self.img = img
-        return img
-
-    def _pop(self):
-        """
-        Pops an image from the buffer.
-
-        Args:
-            self: The ScoreAnimation instance.
-
-        Returns:
-            img: The popped image from the buffer, or None if the buffer is empty.
-        """
-
-        if len(self.fifo_buffer) > 0:
-            return self.fifo_buffer.pop(0)
-        return
 
 
 class ScoreAnimation(AutomaticAnimation):
@@ -244,68 +155,8 @@ class ScoreAnimation(AutomaticAnimation):
 
         Thread(target=self.animating_loop, daemon=True).start()
 
-    def scale_x(self, x: float) -> int:
-        return int(x * self.width)
-
-    def scale_y(self, y: float) -> int:
-        return int(y * self.height)
-
     def scale(self, xy: tuple) -> tuple:
-        x, y = xy
-        return (self.scale_x(x), self.scale_y(y))
-
-    def tiny_window(self, ref=0, pairs=None):
-        """
-        Creates a tiny window visualization by drawing reference and real-time curves on the given image.
-
-        Args:
-            self: The ScoreAnimation instance.
-            img: The image to draw the curves on.
-            ref (int, optional): The reference value. Defaults to 0.
-            pairs (list, optional): List of value pairs. Each pair represents a point on the real-time curve. Defaults to None.
-
-        Returns:
-            img: The image with the reference and real-time curves drawn.
-
-        Examples:
-            anim = ScoreAnimation()
-            img = Image.new('RGB', (800, 600))
-            img = anim.tiny_window(img, ref=10, pairs=[(5,), (8,), (12,)])
-        """
-
-        if pairs is None:
-            pairs = [(ref,), (ref,)]
-
-        if len(pairs) == 1:
-            pairs.append(pairs[0])
-
-        n = len(pairs)
-
-        img = self.img.copy()
-
-        left = 0.7
-        right = 0.9
-        center_height = 0.5
-        half_height = 0.2
-
-        x = np.linspace(left, right, n)
-        z = np.array([e[0] for e in pairs])
-        w = np.abs(z-ref) / ref
-        y = center_height - half_height * np.sign(z-ref) * (1-np.exp(-w))
-        xy = [self.scale((a, b)) for a, b in zip(x, y)]
-
-        draw = ImageDraw.Draw(img, mode='RGB')
-
-        # Reference curve
-        draw.line([
-            self.scale((left, center_height)),
-            self.scale((right, center_height))
-        ], fill='green')
-
-        # Real-time curve
-        draw.line(xy, fill='red')
-
-        return img
+        return self.scale_xy_ratio(xy)
 
 
 # %% ---- 2023-10-30 ------------------------
