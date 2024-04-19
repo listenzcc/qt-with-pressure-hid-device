@@ -27,7 +27,11 @@ from pathlib import Path
 from datetime import datetime
 from threading import Thread
 
+# Import QApplication BEFORE anything # noqa
+from PySide2.QtWidgets import QApplication # noqa
+
 import pyqtgraph as pg
+
 from PySide2 import QtCore, QtWidgets
 from PySide2.QtGui import QFont
 from PySide2.QtCore import QCoreApplication
