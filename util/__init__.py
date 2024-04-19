@@ -45,14 +45,10 @@ conf_path.parent.mkdir(parents=True, exist_ok=True)
 setup = dict(
     display=dict(
         window_length_seconds=20,  # Seconds
-        delay_seconds=10,  # Seconds
+        delay_seconds=2,  # Seconds
         max_value=2000,  # g
         min_value=-10,  # g
         ref_value=500,  # g
-
-        two_step_animation_mean_threshold=100,  # g
-        two_step_animation_std_threshold=100,  # g
-        two_step_animation_window_length=1.0,  # seconds
 
         display_ref_flag=True
     ),
@@ -82,7 +78,7 @@ print(OmegaConf.to_yaml(project_conf), file=open(conf_path, 'w'))
 # %% ---- 2023-09-17 ------------------------
 # logging
 
-logger.add('log/pressure-feedback.log', rotation='1 MB')
+logger.add('log/pressure-feedback.log', rotation='5 MB')
 logger.info(f'Project starts with: {project_conf}')
 
 

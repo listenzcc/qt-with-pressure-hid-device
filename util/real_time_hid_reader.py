@@ -159,14 +159,26 @@ class FakePressure(object):
 
 
 class RealTimeHidReader(object):
-    """The hid reader for real time getting the figure pressure value.
+    """
+    The hid reader for real time getting the figure pressure value.
+
+    ----------------------------------------------------------------------------------------------------
+    - The buffer's columns (5) are
+        (pressure_value, digital_value, fake_pressure_value, fake_digital_value, timestamp)
+
+    - The buffer_delay's columns (5) are
+        (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestamp)
+
+    - The timestamp refers the seconds passed from the start
+    ----------------------------------------------------------------------------------------------------
 
     @sample_rate (int): The frequency of getting the data;
     @running (boolean): The stats of the getting loop;
     @stop() (method): Stop the getting loop;
     @start() (method): Start the getting loop;
-    @_reading() (private method): The getting loop function, it is a running-forever loop;
-                                  The method updates the self.buffer in sample_rate frequency;
+    @_reading() (private method):
+        The getting loop function, it is a running-forever loop;
+        The method updates the self.buffer in sample_rate frequency;
     @peek(n) (method): Peek the latest n-points data in the buffer;
 
     """
@@ -299,15 +311,14 @@ class RealTimeHidReader(object):
                 # The 1st and 2nd elements are used as the fake pressure value
                 fake = self.fake_pressure.get()
 
-                # The data is the array of
-                # ! (pressure_value, digital_value, fake_pressure_value, fake_digital_value,seconds passed from the start)
+                # --------------------------------------------------------------------------------
+                # Update buffer
                 self.buffer.append((value, raw_value, fake[0], fake[1], t-tic))
 
                 # The buffer grows by 1
                 self.n += 1
 
-                # The buffer_delay's row is:
-                # (avg-pressure, fake-avg-pressure, std-pressure, fake-std-pressure, timestampe)
+                # Update buffer_delay
                 if self.n > self.delay_pnts:
                     pairs = self.peek(self.delay_pnts)
                     values = [(e[0], e[2]) for e in pairs]
