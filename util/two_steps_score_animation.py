@@ -41,8 +41,8 @@ from .automatic_animation import AutomaticAnimation
 # --------------------------------------------------------------------------------
 class TwoStepScorer(object):
     ref_value = project_conf['display']['ref_value']
-    mean_threshold = 10  # g
-    std_threshold = 10  # g
+    mean_threshold = 50  # g
+    std_threshold = 50  # g
 
     state = '1st'
     score_1st_step = 0
@@ -163,6 +163,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         # --------------------
         # Load frames
         n = 60
+        # n = 6
         for j in tqdm(range(1, 1+n), f'Loading resources: {name}'):
             img = _change_img_1(Image.open(folder.joinpath(f'frames/{j}.jpg')))
             self.images_2nd.append(img)
@@ -196,8 +197,6 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
             diff = score2 - score1
 
             n = len(self.images_2nd)-1
-            # idx1 = int(n * score1 / 100)
-            # idx2 = int(n * score2 / 100)
 
             for s in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
                 idx = int(n * s / 100)
@@ -211,7 +210,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
                 y = 0.8
                 draw.rectangle((
                     self.scale((x-r, y-r)), self.scale((x+r, y+r))
-                ), fill='#aa0000')
+                ), fill='#00aaaa')
 
                 self.fifo_buffer.append(img)
 
@@ -249,6 +248,16 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
                 draw.rectangle((
                     self.scale((x-r, y-r)), self.scale((x+r, y+r))
                 ), fill='#aa0000')
+
+                # --------------------
+                img2 = Image.new(mode='RGB', size=(200, 200))
+                img2 = self.submarine_image.resize((100, 100))
+                x = 0.5 + 0.5 * s / 200
+                y = 0.8
+                img.paste(
+                    img2,
+                    (int(x*self.width)-50, int(y*self.height)-50),
+                    img2)
 
                 self.fifo_buffer.append(img)
 

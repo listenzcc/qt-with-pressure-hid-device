@@ -28,7 +28,7 @@ from datetime import datetime
 from threading import Thread
 
 # Import QApplication BEFORE anything # noqa
-from PySide2.QtWidgets import QApplication # noqa
+from PySide2.QtWidgets import QApplication  # noqa
 
 import pyqtgraph as pg
 
@@ -823,6 +823,8 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             # Animation
             animation_value_type=QtWidgets.QComboBox(),
             animation_value_threshold=QtWidgets.QDial(),
+            two_steps_animation_mean_threshold=QtWidgets.QSpinBox(),
+            two_steps_animation_std_threshold=QtWidgets.QSpinBox(),
             # Correction
             button_0g=QtWidgets.QPushButton(_tr("Ruler correction 0g")),
             button_200g=QtWidgets.QPushButton(_tr("Ruler correction 200g")),
@@ -1018,15 +1020,45 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             _label_threshold_changed
         )
 
-        inputs["animation_value_threshold"].setValue(10)
         inputs["animation_value_threshold"].setMinimum(1)
         inputs["animation_value_threshold"].setMaximum(200)
+        inputs["animation_value_threshold"].setValue(10)
 
         # --------------------------------------------------------------------------------
         # zone_two_steps_animation
         zone_two_steps_animation = QtWidgets.QGroupBox(
             _tr('Two steps animation opt.'))
         zone_two_steps_animation.setCheckable(True)
+        vbox_two_steps_animation = QtWidgets.QVBoxLayout()
+        zone_two_steps_animation.setLayout(vbox_two_steps_animation)
+
+        def _change_two_steps_animation_mean_threshold(value):
+            tssa_cls.mean_threshold = value
+            logger.debug(f'Changed two_steps_animation_mean_threshold to {value}')
+
+        def _change_two_steps_animation_std_threshold(value):
+            tssa_cls.std_threshold = value
+            logger.debug(f'Changed two_steps_animation_std_threshold to {value}')
+
+        hbox = QtWidgets.QHBoxLayout()
+        vbox_two_steps_animation.addLayout(hbox)
+        hbox.addWidget(QtWidgets.QLabel(_tr("Avg. threshold")))
+        obj = inputs['two_steps_animation_mean_threshold']
+        obj.setMinimum(0)
+        obj.setMaximum(200)
+        obj.setValue(tssa_cls.mean_threshold)
+        obj.valueChanged.connect(_change_two_steps_animation_mean_threshold)
+        hbox.addWidget(obj)
+
+        hbox = QtWidgets.QHBoxLayout()
+        vbox_two_steps_animation.addLayout(hbox)
+        hbox.addWidget(QtWidgets.QLabel(_tr("Std. threshold")))
+        obj = inputs['two_steps_animation_std_threshold']
+        obj.setMinimum(0)
+        obj.setMaximum(200)
+        obj.setValue(tssa_cls.std_threshold)
+        obj.valueChanged.connect(_change_two_steps_animation_std_threshold)
+        hbox.addWidget(obj)
 
         # --------------------------------------------------------------------------------
         # zone3
