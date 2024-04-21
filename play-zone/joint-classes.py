@@ -19,12 +19,10 @@ Functions:
 # %% ---- 2024-04-18 ------------------------
 # Requirements and constants
 
-
 # %% ---- 2024-04-18 ------------------------
 # Function and class
 
 class C1(object):
-    """docstring for C1."""
     c1 = 1
 
     def __init__(self, x):
@@ -32,7 +30,6 @@ class C1(object):
 
 
 class C2(object):
-    """docstring for C2."""
     c2 = 2
 
     def __init__(self, y, k):
@@ -41,7 +38,6 @@ class C2(object):
 
 
 class C3(object):
-    """docstring for C3."""
     c3 = 3
 
     def __init__(self, z):
@@ -49,9 +45,22 @@ class C3(object):
 
 
 class C0(C1, C2, C3):
+    '''
+    **Class C0(C1, C2, C3)**
+    A class that represents C0 and inherits from C1, C2, and C3.
+
+    **Methods:**
+    - `__init__(self, k='k', x='x', y='y', z='z')`: Initializes an instance of C0 with optional parameters k, x, y, and z. Calls the `__init__` methods of C1, C2, and C3 using the `super()` function.
+    - `print(self)`: Prints the attributes of the instance of C0.
+
+    '''
+
     def __init__(self, k='k', x='x', y='y', z='z'):
+        # Super for C2
         super(C1, self).__init__(y, k)
+        # Super for C3
         super(C2, self).__init__(z)
+        # Super for C1
         super(C0, self).__init__(x)
 
     def print(self):
@@ -64,6 +73,10 @@ class C0(C1, C2, C3):
 if __name__ == '__main__':
     c0 = C0()
     c0.print()
+
+    print('---- __mro__ ----')
+    for i, e in enumerate(C0.__mro__):
+        print(i, e)
 
 
 # %% ---- 2024-04-18 ------------------------
