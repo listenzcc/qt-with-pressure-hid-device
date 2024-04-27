@@ -73,7 +73,8 @@ class TwoStepScorer(object):
     def _limit_scores(self):
         '''Keep the scores inside the range of [0, 100]'''
         # self.score_1st = min(100, max(0, self.score_1st))
-        self.score_2nd = min(100, max(0, self.score_2nd))
+        self.score_2nd = min(self.score_2nd_range[1], max(
+            self.score_2nd_range[0], self.score_2nd))
 
     def _update_score(self, data: Any):
         if data is None:
@@ -225,7 +226,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
 
             # Handle the both conditions of diff == 0 and diff != 0
             for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
-                idx = int(n * score / 100)
+                idx = int((n-1) * score / self.score_2nd_range[1])
                 img = self.images_2nd[idx].resize(image_size)
 
                 # # --------------------
@@ -257,7 +258,8 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
             _, height = self.submarine_image.size
             max_d_height = height * 0.2
 
-            for score in np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
+            # Handle the both conditions of diff == 0 and diff != 0
+            for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
                 img = self.ocean_image
                 # score -> infinity, dy -> 1
                 # score -> 0, dy -> 0
