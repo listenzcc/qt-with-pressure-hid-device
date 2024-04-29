@@ -706,7 +706,9 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         self.fake_blocks = [
             e for e in self.block_manager.design if e["name"] == "Fake"]
-        logger.debug(f"Found fake blocks {self.fake_blocks}")
+        logger.warning(f"Found fake blocks remained: {self.fake_blocks}")
+
+        self.save_data(status='User-terminate')
 
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
@@ -755,7 +757,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         # Reset the next_10s timer
         self.next_animation_update_seconds = self.animation_time_step_length
 
-    def save_data(self):
+    def save_data(self, status='Task-finished'):
         """
         Save the data and the snapshot setup for the block design experiment.
 
@@ -769,10 +771,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         # 2. Get other stuff
         subject_info = self.setup_snapshot["subject_info"]
         experiment_info = self.setup_snapshot["experiment_info"]
+        status_info = dict(
+            date=str(datetime.now()),
+            status=status
+        )
 
         # 4. Makeup how to save them
         _filename = datetime.strftime(datetime.now(), "%Y-%m-%d-%H-%M-%S")
-        folder = self.data_folder_path.joinpath(f'{_filename}')
+        folder = self.data_folder_path.joinpath(f'{status}-{_filename}')
         folder.mkdir(exist_ok=True, parents=True)
 
         # 5. Save into files
@@ -780,6 +786,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         json.dump(subject_info, open(folder.joinpath("subject.json"), "w"))
         json.dump(experiment_info, open(
             folder.joinpath("experiment.json"), "w"))
+        json.dump(status_info, open(folder.joinpath('status.json'), 'w'))
 
         logger.debug(f"Saved data into {folder}")
 
@@ -1034,11 +1041,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         def _change_two_steps_animation_mean_threshold(value):
             tssa_cls.mean_threshold = value
-            logger.debug(f'Changed two_steps_animation_mean_threshold to {value}')
+            logger.debug(
+                f'Changed two_steps_animation_mean_threshold to {value}')
 
         def _change_two_steps_animation_std_threshold(value):
             tssa_cls.std_threshold = value
-            logger.debug(f'Changed two_steps_animation_std_threshold to {value}')
+            logger.debug(
+                f'Changed two_steps_animation_std_threshold to {value}')
 
         hbox = QtWidgets.QHBoxLayout()
         vbox_two_steps_animation.addLayout(hbox)
