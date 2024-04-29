@@ -184,9 +184,12 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         submarine_image = Image.open(
             folder.joinpath('parts/submarine-only.jpg'))
         logger.debug('Loaded submarine image')
-        mat = np.sum(np.array(submarine_image), 2)
-        mat[mat == 255] = 0
-        mat[mat > 0] = 255
+
+        mat = np.array(submarine_image.convert('L'))
+        _mat = mat.copy()
+        mat[_mat < 250] = 255
+        mat[_mat >= 250] = 0
+
         submarine_mask = Image.fromarray(mat, mode='L')
         logger.debug('Generated submarine image')
 
@@ -260,7 +263,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
 
             # Handle the both conditions of diff == 0 and diff != 0
             for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
-                img = self.ocean_image
+                img = self.ocean_image.copy()
                 # score -> infinity, dy -> 1
                 # score -> 0, dy -> 0
                 dy = (1 - np.exp(-np.abs(score / score_scale)))
