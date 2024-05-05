@@ -41,7 +41,7 @@ from .load_protocols import MyProtocol
 from .real_time_hid_reader import RealTimeHidReader
 from .score_animation import ScoreAnimation, pil2rgb
 from .realign import realign_into_8ms_sampling
-from .two_steps_score_animation import TwoStepScore_Animation_CatLeavesSubmarine
+from .two_steps_score_animation import TwoStepScore_Animation_CatLeavesSubmarine, TwoStepScore_Animation_CatClimbsTree
 
 from rich import print, inspect
 
@@ -52,6 +52,7 @@ sa = ScoreAnimation()
 
 # ---------------
 tssa_cls = TwoStepScore_Animation_CatLeavesSubmarine()
+tssa_cct = TwoStepScore_Animation_CatClimbsTree()
 # tssa_cls.update_score()
 
 # ---------------
@@ -498,7 +499,8 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         "Delayed",
         "Circle fit",
         "Animation fit",
-        'Cat leaves submarines'
+        'Cat leaves submarine',
+        'Cat climbs tree'
     ]
     display_mode = display_modes[0]
 
@@ -1041,11 +1043,13 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         def _change_two_steps_animation_mean_threshold(value):
             tssa_cls.mean_threshold = value
+            tssa_cct.mean_threshold = value
             logger.debug(
                 f'Changed two_steps_animation_mean_threshold to {value}')
 
         def _change_two_steps_animation_std_threshold(value):
             tssa_cls.std_threshold = value
+            tssa_cct.mean_threshold = value
             logger.debug(
                 f'Changed two_steps_animation_std_threshold to {value}')
 
@@ -1114,12 +1118,14 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         def _change_ref_value(v):
             self.ref_value = v
             tssa_cls.ref_value = v
+            tssa_cct.ref_value = v
             inputs['line3_ref_value_spin'].setValue(v)
             self.signal_monitor_widget.ellipse4_size_changed(v)
 
         def _change_ref_value_spin(v):
             self.ref_value = v
             tssa_cls.ref_value = v
+            tssa_cct.ref_value = v
             inputs['line3_ref_value'].setValue(v)
             self.signal_monitor_widget.ellipse4_size_changed(v)
 
@@ -1332,7 +1338,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 self.signal_monitor_widget.getPlotItem().hideAxis('bottom')
                 sa.reset()
 
-            if display_mode == 'Cat leaves submarines':
+            if display_mode == 'Cat leaves submarine':
                 zone_realtime_setup.setVisible(False)
                 zone_delayed_setup.setVisible(True)
                 zone_reference_setup.setVisible(True)
@@ -1343,6 +1349,18 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 self.signal_monitor_widget.getPlotItem().hideAxis('left')
                 self.signal_monitor_widget.getPlotItem().hideAxis('bottom')
                 tssa_cls.reset()
+
+            if display_mode == 'Cat climbs tree':
+                zone_realtime_setup.setVisible(False)
+                zone_delayed_setup.setVisible(True)
+                zone_reference_setup.setVisible(True)
+                zone_weight_correction.setVisible(False)
+                zone_animation.setVisible(False)
+                zone_two_steps_animation.setVisible(True)
+
+                self.signal_monitor_widget.getPlotItem().hideAxis('left')
+                self.signal_monitor_widget.getPlotItem().hideAxis('bottom')
+                tssa_cct.reset()
 
         inputs["display_mode"].currentTextChanged.connect(
             _enter_into_display_mode)
@@ -1796,6 +1814,10 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         tssa_cls.width = width
         tssa_cls.height = height
 
+        # --------------------
+        tssa_cct.width = width
+        tssa_cct.height = height
+
         logger.debug(f'Resized animation image into {(width, height)}')
 
         # print(w, pw, h, ph)
@@ -1830,6 +1852,26 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         logger.debug(f"Update score to: {score}, step: {step}")
 
         return score
+
+    def update_cat_climbs_tree_animation(self, need_update_flag: bool, pairs_delay=None):
+        # Enter into the animation mode
+        self.signal_monitor_widget.animation_mode()
+
+        # Update the score if-and-only-if the flag is set
+        if need_update_flag:
+            self._resize_animation_img()
+
+            Thread(
+                target=tssa_cct.update_score,
+                args=(pairs_delay,), daemon=True).start()
+
+        # Always update the tiny window
+        # Draw the tiny window for pressure feedback
+        mat = pil2rgb(tssa_cct.tiny_window(
+            ref=self.ref_value, data=pairs_delay))
+        self.signal_monitor_widget.animation_img.setImage(
+            mat[::-1].transpose([1, 0, 2])
+        )
 
     def update_cat_leaves_submarine_animation(self, need_update_flag: bool, pairs_delay=None):
         # Enter into the animation mode
@@ -1930,7 +1972,17 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             self.signal_monitor_widget.current_block_remainder_text.setVisible(
                 False)
 
-        if display_mode == "Cat leaves submarines":
+        if display_mode == "Cat leaves submarine":
+            self.signal_monitor_widget.curve1.setVisible(False)
+            self.signal_monitor_widget.curve2.setVisible(False)
+            self.signal_monitor_widget.curve3.setVisible(False)
+            self.signal_monitor_widget.ellipse4.setVisible(False)
+            self.signal_monitor_widget.ellipse5.setVisible(False)
+            self.signal_monitor_widget.animation_img.setVisible(True)
+            self.signal_monitor_widget.current_block_remainder_text.setVisible(
+                False)
+
+        if display_mode == "Cat climbs tree":
             self.signal_monitor_widget.curve1.setVisible(False)
             self.signal_monitor_widget.curve2.setVisible(False)
             self.signal_monitor_widget.curve3.setVisible(False)
@@ -2005,7 +2057,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             return
 
         # Display the cat-leaves-submarines animation
-        if self.display_mode == 'Cat leaves submarines':
+        if self.display_mode == 'Cat leaves submarine':
             need_update_flag = False
 
             if t1 > self.next_animation_update_seconds:
@@ -2015,6 +2067,20 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 need_update_flag = True
 
             self.update_cat_leaves_submarine_animation(
+                need_update_flag, pairs_delay)
+            return
+
+        # Display the cat-climbs-tree animation
+        if self.display_mode == 'Cat climbs tree':
+            need_update_flag = False
+
+            if t1 > self.next_animation_update_seconds:
+                logger.debug(
+                    f'Reached animation update time, {self.next_animation_update_seconds}')
+                self.next_animation_update_seconds += self.animation_time_step_length
+                need_update_flag = True
+
+            self.update_cat_climbs_tree_animation(
                 need_update_flag, pairs_delay)
             return
 

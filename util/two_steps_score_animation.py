@@ -23,6 +23,7 @@ Functions:
 
 # %% ---- 2024-04-17 ------------------------
 # Requirements and constants
+import contextlib
 import numpy as np
 
 from PIL import Image, ImageDraw
@@ -140,22 +141,196 @@ class TwoStepScorer(object):
 
             return self.get_current_state()
 
-
 # --------------------------------------------------------------------------------
 
 
-class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimation):
-    images_2nd = []  # RBG PIL images
+class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
+    images_2nd = []  # RGB PIL Images
+    update_score_locked = False
 
     def __init__(self):
-        self.load_cat_climbs_tree_resources()
-        super(TwoStepScore_Animation_CatLeavesSubmarine, self).__init__()
+        super(TwoStepScore_Animation_CatClimbsTree, self).__init__()
+        try:
+            self.load_cat_climbs_tree_resources()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            logger.error('Failed loading required resources')
 
     def reset(self):
         self.fifo_buffer = []
         self.reset_scores()
 
     def load_cat_climbs_tree_resources(self):
+        name = 'cat-climbs-tree'
+        folder = root_path.joinpath(f'img/{name}')
+
+        # --------------------
+        # ! The relative small size of the image
+        # ! The aim is to minimize the working load of the imaging
+        image_size = (self.width, self.height)
+
+        # --------------------
+        # Load frames
+        n = 60
+        # n = 6
+        self.images_2nd = []
+        for j in tqdm(range(n), f'Loading frames: {name}'):
+            img = Image.open(folder.joinpath(f'frames/{j+1}.jpg'))
+            self.images_2nd.append(img)
+        logger.debug(f'Loaded {n} frames of {name}')
+
+        # --------------------
+        # Load the land image
+        land_image = Image.open(folder.joinpath('parts/land-only.jpg'))
+        logger.debug('Loaded land image')
+
+        # --------------------
+        # Load tree image and generate its mask
+        tree_image = Image.open(
+            folder.joinpath('parts/tree-only.jpg'))
+        logger.debug('Loaded tree image')
+
+        # Create mask for the submarine
+        mat = np.array(tree_image.convert('L'))
+        _mat = mat.copy()
+        mat[_mat < 250] = 255
+        mat[_mat >= 250] = 0
+        tree_mask = Image.fromarray(mat, mode='L')
+        logger.debug('Generated submarine image')
+
+        # --------------------
+        # Load blue and red circle
+        blue_circle_image = Image.open(folder.joinpath(
+            'parts/blue-circle.png')).convert('RGBA')
+        logger.debug('Loaded blue circle image')
+        red_circle_image = Image.open(folder.joinpath(
+            'parts/red-circle.png')).convert('RGBA')
+        logger.debug('Loaded red circle image')
+
+        # --------------------
+        land_image.paste(tree_image, (0, 0), tree_mask)
+        land_image.paste(red_circle_image, (0, 0), red_circle_image)
+
+        # --------------------
+        # Update variables
+        self.images_2nd
+        self.image_size = image_size
+        self.land_image = land_image
+        self.tree_image = tree_image
+        self.tree_mask = tree_mask
+        self.blue_circle_image = blue_circle_image
+        self.red_circle_image = red_circle_image
+
+    @contextlib.contextmanager
+    def _lock_me(self):
+        try:
+            self.update_score_locked = True
+            yield
+        finally:
+            self.update_score_locked = False
+
+    def update_score(self, data: Any = None):
+        if self.update_score_locked:
+            logger.warning('Update score is locked')
+            return
+
+        with self._lock_me():
+            # Update score within this sub-class,
+            # incase it interfaces with the animation
+            state_before = self.get_current_state()
+
+            # If received no data, the state is unchanged,
+            # the state_after equals to state_before
+            state_after = state_before if data is None else self._update_score(
+                data)
+
+            logger.debug(f'Updated state from {state_before} to {state_after}')
+
+            self.mk_frames(state_before, state_after)
+
+    def mk_frames(self, state_before, state_after):
+
+        n_frames = 10
+
+        image_size = (self.width, self.height)
+
+        # --------------------
+        # The 2nd state
+        # Only choose the frames to display
+        if state_after['state'] == '2nd':
+            score1 = state_before['score_2nd']
+            score2 = state_after['score_2nd']
+            diff = score2 - score1
+
+            n = len(self.images_2nd)-1
+
+            # Handle the both conditions of diff == 0 and diff != 0
+            for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
+                idx = int((n-1) * score / self.score_2nd_range[1])
+                img = self.images_2nd[idx].resize(image_size)
+
+                self.fifo_buffer.append(img)
+
+        # --------------------
+        # The 1st state
+        # Put the submarine on the correct position
+        if state_after['state'] == '1st':
+            score1 = state_before['score_1st']
+            score2 = state_after['score_1st']
+
+            # At least make the score2 of the same sign with the score1,
+            # it prevents the submarine up and down
+            if score1 * score2 < 0:
+                score2 *= -1
+
+            diff = score2 - score1
+
+            score_scale = 100  # g
+            _, height = self.tree_image.size
+            max_d_height = height * 0.2
+
+            # Handle the both conditions of diff == 0 and diff != 0
+            for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
+                img = self.land_image.copy()
+                # img.paste(self.tree_image, (0, 0), self.tree_mask)
+
+                # --------------------
+                # score -> infinity, dy -> 1
+                # score -> 0, dy -> 0
+                dy = score / score_scale
+                # img.paste(self.red_circle_image, (0, 0), self.red_circle_image)
+                img.paste(
+                    self.blue_circle_image,
+                    (0, int(dy * max_d_height)),
+                    self.blue_circle_image)
+
+                img = img.resize(image_size)
+                self.fifo_buffer.append(img)
+
+        Thread(target=self.animating_loop, daemon=True).start()
+
+    def scale(self, xy: tuple) -> tuple:
+        return self.scale_xy_ratio(xy)
+# --------------------------------------------------------------------------------
+
+
+class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimation):
+    images_2nd = []  # RBG PIL images
+    update_score_locked = False
+
+    def __init__(self):
+        super(TwoStepScore_Animation_CatLeavesSubmarine, self).__init__()
+        try:
+            self.load_cat_leaves_submarine_resources()
+        except Exception:
+            logger.error('Failed loading required resources')
+
+    def reset(self):
+        self.fifo_buffer = []
+        self.reset_scores()
+
+    def load_cat_leaves_submarine_resources(self):
         name = 'cat-leaves-submarine'
         folder = root_path.joinpath(f'img/{name}')
 
@@ -185,31 +360,48 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
             folder.joinpath('parts/submarine-only.jpg'))
         logger.debug('Loaded submarine image')
 
+        # --------------------
+        # Create mask for the submarine
         mat = np.array(submarine_image.convert('L'))
         _mat = mat.copy()
         mat[_mat < 250] = 255
         mat[_mat >= 250] = 0
-
         submarine_mask = Image.fromarray(mat, mode='L')
         logger.debug('Generated submarine image')
 
         # --------------------
+        # Update variables
         self.images_2nd
         self.image_size = image_size
         self.ocean_image = ocean_image
         self.submarine_image = submarine_image
         self.submarine_mask = submarine_mask
 
+    @contextlib.contextmanager
+    def _lock_me(self):
+        try:
+            self.update_score_locked = True
+            yield
+        finally:
+            self.update_score_locked = False
+
     def update_score(self, data: Any = None):
-        state_before = self.get_current_state()
+        if self.update_score_locked:
+            logger.warning('Update score is locked')
+            return
 
-        # If received no data, the state is unchanged,
-        # the state_after equals to state_before
-        state_after = state_before if data is None else self._update_score(
-            data)
+        with self._lock_me():
+            # Update score within this sub-class,
+            # incase it interfaces with the animation
+            state_before = self.get_current_state()
 
-        logger.debug(f'Updated state from {state_before} to {state_after}')
-        self.mk_frames(state_before, state_after)
+            # If received no data, the state is unchanged,
+            # the state_after equals to state_before
+            state_after = state_before if data is None else self._update_score(
+                data)
+
+            logger.debug(f'Updated state from {state_before} to {state_after}')
+            self.mk_frames(state_before, state_after)
 
     def mk_frames(self, state_before, state_after):
 
@@ -231,16 +423,6 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
             for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
                 idx = int((n-1) * score / self.score_2nd_range[1])
                 img = self.images_2nd[idx].resize(image_size)
-
-                # # --------------------
-                # draw = ImageDraw.Draw(img, mode='RGB')
-                # r = 0.04
-                # x = 0.5
-                # y = 0.8
-                # draw.rectangle((
-                #     self.scale((x-r, y-r)), self.scale((x+r, y+r))
-                # ), fill='#00aaaa')
-
                 self.fifo_buffer.append(img)
 
         # --------------------
@@ -264,6 +446,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
             # Handle the both conditions of diff == 0 and diff != 0
             for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
                 img = self.ocean_image.copy()
+                # --------------------
                 # score -> infinity, dy -> 1
                 # score -> 0, dy -> 0
                 dy = (1 - np.exp(-np.abs(score / score_scale)))
@@ -272,31 +455,6 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
                     (0, int(dy * max_d_height)),
                     self.submarine_mask)
                 img = img.resize(image_size)
-
-                # # --------------------
-                # draw = ImageDraw.Draw(img, mode='RGB')
-                # r = 0.05
-                # x = 0.5
-                # y = 0.8
-                # draw.rectangle((
-                #     self.scale((x-r, y-r)), self.scale((x+r, y+r))
-                # ), outline='#aaaaaa')
-
-                # # --------------------
-                # r = 0.04
-                # x = 0.5 + 0.5 * score2 / 200
-                # y = 0.8
-                # draw.rectangle((
-                #     self.scale((x-r, y-r)), self.scale((x+r, y+r))
-                # ), outline='#aa0000')
-
-                # # --------------------
-                # r = 0.04
-                # x = 0.5 + 0.5 * score / 200
-                # y = 0.8
-                # draw.rectangle((
-                #     self.scale((x-r, y-r)), self.scale((x+r, y+r))
-                # ), fill='#aa0000')
 
                 self.fifo_buffer.append(img)
 
