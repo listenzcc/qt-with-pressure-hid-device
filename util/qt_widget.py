@@ -134,10 +134,17 @@ class SignalMonitorWidget(pg.PlotWidget):
         Args:
             ref_value (float): The reference value.
         """
+        # Put it on the center
         cx = (self.max_value + self.min_value) / 2
         cy = (self.max_value + self.min_value) / 2
+
+        # Fix the size of the reference circle
         w = ref_value
         h = ref_value
+
+        w = 1000
+        h = 1000
+
         x = cx - w / 2
         y = cy - h / 2
 
@@ -145,7 +152,7 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         self.ellipse4.setRect(x, y, w, h)
 
-    def ellipse5_size_changed(self, value: float):
+    def ellipse5_size_changed(self, value: float, ref_value: float):
         """
         Updates the size and position of `ellipse5` based on the provided value.
 
@@ -174,11 +181,16 @@ class SignalMonitorWidget(pg.PlotWidget):
 
         if value > self.ref_value:
             # The pressure is large, pitch the circle
-            w = self.ref_value * (1 + r)
-            h = 2 * self.ref_value - w
+            # w = self.ref_value * (1 + r)
+            # h = 2 * self.ref_value - w
+
+            w = 1000 * (1+r)
+            h = 2 * 1000 - w
         else:
-            h = self.ref_value * (1 + r)
-            w = 2 * self.ref_value - h
+            # h = self.ref_value * (1 + r)
+            # w = 2 * self.ref_value - h
+            h = 1000 * (1+r)
+            w = 2 * 1000 - h
 
         x = cx - w / 2
         y = cy - h / 2
@@ -469,6 +481,26 @@ class BlockManager(object):
         return self.design[0]
 
 
+class CustomDialog(QtWidgets.QDialog):
+    def __init__(self, parent=None, title: str = 'Something wrong', messages: list = ['msg']):
+        super().__init__(parent)
+
+        self.setWindowTitle(title)
+
+        QBtn = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+
+        self.buttonBox = QtWidgets.QDialogButtonBox(QBtn)
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        self.layout = QtWidgets.QVBoxLayout()
+        for msg in messages:
+            message = QtWidgets.QLabel(msg)
+            self.layout.addWidget(message)
+        self.layout.addWidget(self.buttonBox)
+        self.setLayout(self.layout)
+
+
 class UserInterfaceWidget(QtWidgets.QMainWindow):
     """My QT-6 Widget
 
@@ -599,6 +631,36 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         # # Handle resize event
         # self.resizeEvent.connect(self.on_resized)
+
+        # --------------------------------------------------------------------------------
+        # Pop-up if known errors are raised
+        messages = []
+
+        if not sa.resource_OK:
+            messages.extend(
+                (
+                    'Failed to load resource of building animation ',
+                    sa.resource_traceback,
+                )
+            )
+        if not tssa_cls.resource_OK:
+            messages.extend(
+                (
+                    'Failed to load resource of Cat leaves submarine animation',
+                    tssa_cls.resource_traceback,
+                )
+            )
+        if not tssa_cct.resource_OK:
+            messages.extend(
+                (
+                    'Failed to load resource of Cat climbs tree animation',
+                    tssa_cct.resource_traceback,
+                )
+            )
+
+        if messages:
+            dlg = CustomDialog(messages=messages)
+            dlg.exec()
 
     def keyPressEvent(self, event):
         # F11 key code is 16777274
@@ -1132,6 +1194,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         inputs["line3_ref_value"].valueChanged.connect(_change_ref_value)
         inputs["line3_ref_value_spin"].valueChanged.connect(
             _change_ref_value_spin)
+        self.signal_monitor_widget.ellipse4_size_changed(self.ref_value)
 
         def _check_zone3(b):
             self.display_ref_flag = b
@@ -2121,7 +2184,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
             if pairs is not None:
                 if len(pairs) > 0:
                     self.signal_monitor_widget.ellipse5_size_changed(
-                        pairs[-1][0])
+                        pairs[-1][0], self.ref_value)
 
         return
 

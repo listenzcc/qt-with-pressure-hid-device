@@ -21,8 +21,9 @@ Functions:
 import numpy as np
 
 from threading import Thread
-
 from PIL import Image, ImageDraw
+
+from tqdm.auto import tqdm
 
 from . import logger, root_path
 from .automatic_animation import AutomaticAnimation
@@ -53,12 +54,21 @@ class ScoreAnimation(AutomaticAnimation):
     score_default = 50
     score = score_default
 
+    resource_OK = False
+
     gif = Image.open(root_path.joinpath('img/building.gif'))
     # gif = Image.open(root_path.joinpath('img/giphy.gif'))
 
     def __init__(self):
         super(ScoreAnimation, self).__init__()
-        self.gif_buffer = self.parse_gif()
+        try:
+            self.gif_buffer = self.parse_gif()
+            self.resource_OK = True
+            logger.info('Loaded required resource')
+        except Exception as err:
+            self.resource_traceback = f'{err}'
+            logger.error('Failed loading required resources')
+
         self.reset()
 
     def parse_gif(self):
@@ -66,11 +76,12 @@ class ScoreAnimation(AutomaticAnimation):
 
         n = self.gif.n_frames
 
-        for j in range(100):
+        for j in tqdm(range(100), 'Loading gif'):
             self.gif.seek(int(j/2)+1)
             # self.gif.seek(int(j/10))
             gif_buffer.append(self.gif.convert('RGB'))
         logger.debug('Parsed gif into gif_buffer')
+
         return gif_buffer
 
     def reset(self, score: int = None):
