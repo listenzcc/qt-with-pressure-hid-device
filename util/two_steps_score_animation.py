@@ -147,14 +147,16 @@ class TwoStepScorer(object):
 class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
     images_2nd = []  # RGB PIL Images
     update_score_locked = False
+    resource_OK = False
 
     def __init__(self):
         super(TwoStepScore_Animation_CatClimbsTree, self).__init__()
         try:
             self.load_cat_climbs_tree_resources()
-        except Exception:
-            import traceback
-            traceback.print_exc()
+            self.resource_OK = True
+            logger.info('Loaded required resource')
+        except Exception as err:
+            self.resource_traceback = f'{err}'
             logger.error('Failed loading required resources')
 
     def reset(self):
@@ -279,11 +281,6 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
             score1 = state_before['score_1st']
             score2 = state_after['score_1st']
 
-            # At least make the score2 of the same sign with the score1,
-            # it prevents the submarine up and down
-            if score1 * score2 < 0:
-                score2 *= -1
-
             diff = score2 - score1
 
             score_scale = 100  # g
@@ -298,7 +295,7 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
                 # --------------------
                 # score -> infinity, dy -> 1
                 # score -> 0, dy -> 0
-                dy = score / score_scale
+                dy = -score / score_scale
                 # img.paste(self.red_circle_image, (0, 0), self.red_circle_image)
                 img.paste(
                     self.blue_circle_image,
@@ -318,12 +315,16 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
 class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimation):
     images_2nd = []  # RBG PIL images
     update_score_locked = False
+    resource_OK = False
 
     def __init__(self):
         super(TwoStepScore_Animation_CatLeavesSubmarine, self).__init__()
         try:
             self.load_cat_leaves_submarine_resources()
-        except Exception:
+            self.resource_OK = True
+            logger.info('Loaded required resource')
+        except Exception as err:
+            self.resource_traceback = f'{err}'
             logger.error('Failed loading required resources')
 
     def reset(self):
