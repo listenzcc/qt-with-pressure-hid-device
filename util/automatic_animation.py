@@ -79,10 +79,10 @@ class AutomaticAnimation(object):
             return
 
         with self._safe_animating_flag():
+            logger.debug('Start animating')
             while self._shift() is not None:
                 time.sleep(secs)
-
-        logger.debug('Finished animating')
+            logger.debug('Finished animating')
 
     def _shift(self):
         """
