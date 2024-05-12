@@ -1111,7 +1111,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         def _change_two_steps_animation_std_threshold(value):
             tssa_cls.std_threshold = value
-            tssa_cct.mean_threshold = value
+            tssa_cct.std_threshold = value
             logger.debug(
                 f'Changed two_steps_animation_std_threshold to {value}')
 
