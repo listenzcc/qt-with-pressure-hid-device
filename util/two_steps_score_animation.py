@@ -215,7 +215,21 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
         # --------------------
         # Update variables
         logger.debug('Resizing resources')
-        self.images_2nd = [e.resize(image_size) for e in self.images_2nd]
+
+        def _resize(i):
+            self.images_2nd[i] = self.images_2nd[i].resize(image_size)
+
+        ts = []
+
+        for i in range(len(self.images_2nd)):
+            t = Thread(target=_resize, args=(i,), daemon=True)
+            t.start()
+            ts.append(t)
+
+        for t in ts:
+            t.join()
+
+        # self.images_2nd = [e.resize(image_size) for e in tqdm(self.images_2nd)]
         self.image_size = image_size
         self.land_image = land_image.resize(image_size)
         self.tree_image = tree_image.resize(image_size)
@@ -376,7 +390,21 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         # --------------------
         # Update variables
         logger.debug('Resizing resources')
-        self.images_2nd = [e.resize(image_size) for e in self.images_2nd]
+
+        def _resize(i):
+            self.images_2nd[i] = self.images_2nd[i].resize(image_size)
+
+        ts = []
+
+        for i in range(len(self.images_2nd)):
+            t = Thread(target=_resize, args=(i,), daemon=True)
+            t.start()
+            ts.append(t)
+
+        for t in ts:
+            t.join()
+
+        # self.images_2nd = [e.resize(image_size) for e in tqdm(self.images_2nd)]
         self.image_size = image_size
         self.ocean_image = ocean_image.resize(image_size)
         self.submarine_image = submarine_image.resize(image_size)

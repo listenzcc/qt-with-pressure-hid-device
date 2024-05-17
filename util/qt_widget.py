@@ -18,6 +18,10 @@ Functions:
 
 # %% ---- 2023-09-17 ------------------------
 # Requirements and constants
+# import os  # noqa
+# envpath = r'C:\Users\zcc\anaconda3\Lib\site-packages\PySide2\plugins\platforms'  # noqa
+# os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = envpath  # noqa
+
 import json
 import time
 import threading
@@ -742,6 +746,10 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 if len(pairs) > 0:
                     self.display_inputs['pressure_value_label'].display(
                         int(pairs[-1][0]))
+
+                # ! The LCD label is kept as 8888 if device connection is crushed
+                if reader.device_crush_flag:
+                    self.display_inputs['pressure_value_label'].display(8888)
 
             # ! The buffer_delay is not the delayed buffer, but its statistic, including avg. and std. values
             pairs_delay = reader.peek_by_seconds(

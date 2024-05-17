@@ -21,7 +21,6 @@ Functions:
 import hid
 import json
 import time
-import random
 import threading
 import contextlib
 import opensimplex
@@ -73,8 +72,9 @@ class TargetDevice(object):
         """
         try:
             hid_devices = hid.enumerate()
-            device_info = [e for e in hid_devices
-                           if e['product_string'] == self.product_string][0]
+            device_info = [
+                e for e in hid_devices
+                if e['product_string'] == self.product_string][0]
             device = hid.device()
             logger.debug(f'Detected device: {device_info}')
         except Exception as err:
@@ -85,6 +85,8 @@ class TargetDevice(object):
 
         self.device_info = device_info
         self.device = device
+
+        logger.debug(f'Detected device: {device}, {device_info}')
 
         return device, device_info
 
@@ -192,6 +194,7 @@ class RealTimeHidReader(object):
     offset_g0 = project_conf['device']['offset_g0']
 
     use_simplex_noise_flag = True  # False
+    device_crush_flag = False
 
     pseudo_data = None
     fake_pressure = FakePressure()
@@ -233,7 +236,7 @@ class RealTimeHidReader(object):
         Start the getting loop in a thread.
         """
 
-        t = threading.Thread(target=self._reading, args=(), daemon=True)
+        t = threading.Thread(target=self._safe_reading, args=(), daemon=True)
         t.start()
 
         logger.debug('Started the HID device reading loop')
@@ -260,11 +263,28 @@ class RealTimeHidReader(object):
         return (value - bias) * k
         # return (value - self.g0) / (self.g200 - self.g0) * 200.0
 
+    def _safe_reading(self):
+        '''
+        It silently fails the self._reading() method if it crushes.
+        The self.device_crush_flag is set accordingly.
+        '''
+        self.device_crush_flag = False
+        try:
+            self._reading()
+        except Exception as err:
+            self.device_crush_flag = True
+            import traceback
+            traceback.print_exc()
+            logger.error(f'Device crushed: {err}')
+        finally:
+            logger.info(f'Stopped reading process')
+
     def _reading(self):
         """
         Private method of the getting loop.
         It is an infinity loop until self.stop() or self.running is False.
         """
+
         self.running = True
 
         self.buffer = []
@@ -356,8 +376,9 @@ class RealTimeHidReader(object):
             n (int): The count of points to be peeked;
 
         Returns:
-            list: The got data, [(value, t), ...], value is the data value, t is the timestamp.
-                  If peek_delay, the buffer_delay is used, [(mean, std, max, min, timestamp), ...] is is the format.
+            list:
+                The got data, [(value, t), ...], value is the data value, t is the timestamp.
+                If peek_delay, the buffer_delay is used, [(mean, std, max, min, timestamp), ...] is is the format.
         """
 
         if peek_delay:

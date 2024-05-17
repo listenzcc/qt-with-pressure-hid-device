@@ -35,6 +35,26 @@
     <name>display setup session</name>
 
     <message>
+      <source>Grid Toggle</source>
+      <translation type="">显示网格</translation>
+    </message>
+
+    <message>
+      <source>Two steps animation opt.</source>
+      <translation type="">两步动画</translation>
+    </message>
+
+    <message>
+      <source>Avg. threshold</source>
+      <translation type="">均值阈值</translation>
+    </message>
+
+    <message>
+      <source>Std. threshold</source>
+      <translation type="">抖动阈值</translation>
+    </message>
+
+    <message>
       <source>Ref. value</source>
       <translation type="">参考值</translation>
     </message>
