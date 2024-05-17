@@ -89,13 +89,13 @@ class TwoStepScorer(object):
 
         logger.debug(f'Update score, input is mean={mean}, std={std}')
 
+        score = mean - self.ref_value
+        self.score_1st = score
         # --------------------
         # Current state is 1st
         # Update it with mean value
         if self.state == '1st':
             # Update the score
-            score = mean - self.ref_value
-            self.score_1st = score
             self._limit_scores()
 
             # The mean value meets the threshold, enter into the 2nd step
@@ -103,7 +103,7 @@ class TwoStepScorer(object):
             if diff < self.mean_threshold:
                 self.state = '2nd'
                 self.score_2nd = 0
-                logger.debug(f'Lvl up to the 2nd step')
+                logger.debug('Lvl up to the 2nd step')
 
             return self.get_current_state()
 
@@ -117,9 +117,6 @@ class TwoStepScorer(object):
             # Check if the mean value fails to meet the threshold
             # if so, back to the 1st state
             if diff > self.mean_threshold:
-                # Update rule:
-                score = mean - self.ref_value
-                self.score_1st = score
                 # Reset the 2nd step score to 0
                 self.score_2nd = 0
                 self._limit_scores()
@@ -211,18 +208,35 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
         logger.debug('Loaded red circle image')
 
         # --------------------
+        # Mark the red colored circle in the land_image
         land_image.paste(tree_image, (0, 0), tree_mask)
         land_image.paste(red_circle_image, (0, 0), red_circle_image)
 
         # --------------------
         # Update variables
-        self.images_2nd
+        logger.debug('Resizing resources')
+
+        def _resize(i):
+            self.images_2nd[i] = self.images_2nd[i].resize(image_size)
+
+        ts = []
+
+        for i in range(len(self.images_2nd)):
+            t = Thread(target=_resize, args=(i,), daemon=True)
+            t.start()
+            ts.append(t)
+
+        for t in ts:
+            t.join()
+
+        # self.images_2nd = [e.resize(image_size) for e in tqdm(self.images_2nd)]
         self.image_size = image_size
-        self.land_image = land_image
-        self.tree_image = tree_image
-        self.tree_mask = tree_mask
-        self.blue_circle_image = blue_circle_image
-        self.red_circle_image = red_circle_image
+        self.land_image = land_image.resize(image_size)
+        self.tree_image = tree_image.resize(image_size)
+        self.tree_mask = tree_mask.resize(image_size)
+        self.blue_circle_image = blue_circle_image.resize(image_size)
+        self.red_circle_image = red_circle_image.resize(image_size)
+        logger.debug('Resized resources')
 
     @contextlib.contextmanager
     def _lock_me(self):
@@ -270,9 +284,12 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
             # Handle the both conditions of diff == 0 and diff != 0
             for score in [score1] if diff == 0 else np.arange(score1, score2+diff/n_frames/2, diff/n_frames):
                 idx = int((n-1) * score / self.score_2nd_range[1])
-                img = self.images_2nd[idx].resize(image_size)
+                img = self.images_2nd[idx].copy()
+                img.paste(self.red_circle_image, (0, 0), self.red_circle_image)
+                img.paste(
+                    self.blue_circle_image, (0, 0), self.blue_circle_image)
 
-                self.fifo_buffer.append(img)
+                self.fifo_buffer.append(img.resize(image_size))
 
         # --------------------
         # The 1st state
@@ -372,11 +389,27 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
 
         # --------------------
         # Update variables
-        self.images_2nd
+        logger.debug('Resizing resources')
+
+        def _resize(i):
+            self.images_2nd[i] = self.images_2nd[i].resize(image_size)
+
+        ts = []
+
+        for i in range(len(self.images_2nd)):
+            t = Thread(target=_resize, args=(i,), daemon=True)
+            t.start()
+            ts.append(t)
+
+        for t in ts:
+            t.join()
+
+        # self.images_2nd = [e.resize(image_size) for e in tqdm(self.images_2nd)]
         self.image_size = image_size
-        self.ocean_image = ocean_image
-        self.submarine_image = submarine_image
-        self.submarine_mask = submarine_mask
+        self.ocean_image = ocean_image.resize(image_size)
+        self.submarine_image = submarine_image.resize(image_size)
+        self.submarine_mask = submarine_mask.resize(image_size)
+        logger.debug('Resized resources')
 
     @contextlib.contextmanager
     def _lock_me(self):

@@ -35,7 +35,11 @@ def compile_ts2qm(file):
     src = file.as_posix()
     dst = file.parent.joinpath(file.name.split('.')[0]).as_posix()
 
-    subprocess.check_call(f'lrelease.exe "{src}" -qm "{dst}"')
+    # subprocess.check_call(r'$env:Path+=";C:\Users\zcc\Anaconda3\Library\bin\"')
+    lrelease = r'C:\Users\zcc\Anaconda3\Library\bin\lrelease.exe'
+    cmd = f'{lrelease} "{src}" -qm "{dst}"'
+    print(cmd)
+    subprocess.check_call(cmd)
 
 
 # %% ---- 2023-09-21 ------------------------
