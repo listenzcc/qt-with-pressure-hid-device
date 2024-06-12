@@ -151,7 +151,7 @@ class AutomaticAnimation(object):
 
         return xy_array
 
-    def tiny_window(self, ref=0, data=None):
+    def tiny_window(self, ref=0, data=None, block_name='Real'):
         """
         Creates a tiny-window widget by drawing reference and real-time curves on the given image.
 
@@ -198,13 +198,16 @@ class AutomaticAnimation(object):
         draw.line(self._scale_value_to_tiny_window(
             np.array([[0, ref], [1, ref]]), ref=ref), fill='green')
 
-        # Draw the avg. curve
-        xy = np.concatenate([x[:, np.newaxis], avg_y[:, np.newaxis]], axis=1)
-        draw.line(self._scale_value_to_tiny_window(xy, ref=ref), fill='red')
+        if block_name != 'Hide':
+            # Draw the avg. curve
+            xy = np.concatenate(
+                [x[:, np.newaxis], avg_y[:, np.newaxis]], axis=1)
+            draw.line(self._scale_value_to_tiny_window(
+                xy, ref=ref), fill='red')
 
-        # Draw the std. range
-        draw.line(self._scale_value_to_tiny_window(
-            np.array([[1, ref-std_latest], [1, ref+std_latest]]), ref=ref), fill='gray')
+            # Draw the std. range
+            draw.line(self._scale_value_to_tiny_window(
+                np.array([[1, ref-std_latest], [1, ref+std_latest]]), ref=ref), fill='gray')
 
         return img
 
