@@ -862,6 +862,10 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         logger.debug(f"Saved data into {folder}")
 
+        dlg = CustomDialog(title='Experiment finished',
+                           messages=['Status', status])
+        dlg.exec()
+
         self.start_button.setDisabled(False)
         self.terminate_button.setDisabled(True)
 
@@ -1924,7 +1928,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
         return score
 
-    def update_cat_climbs_tree_animation(self, need_update_flag: bool, pairs_delay=None):
+    def update_cat_climbs_tree_animation(self, need_update_flag: bool, pairs_delay=None, block_name='Real'):
         # Enter into the animation mode
         self.signal_monitor_widget.animation_mode()
 
@@ -1934,17 +1938,17 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
             Thread(
                 target=tssa_cct.update_score,
-                args=(pairs_delay,), daemon=True).start()
+                args=(pairs_delay, block_name), daemon=True).start()
 
         # Always update the tiny window
         # Draw the tiny window for pressure feedback
         mat = pil2rgb(tssa_cct.tiny_window(
-            ref=self.ref_value, data=pairs_delay))
+            ref=self.ref_value, data=pairs_delay, block_name=block_name))
         self.signal_monitor_widget.animation_img.setImage(
             mat[::-1].transpose([1, 0, 2])
         )
 
-    def update_cat_leaves_submarine_animation(self, need_update_flag: bool, pairs_delay=None):
+    def update_cat_leaves_submarine_animation(self, need_update_flag: bool, pairs_delay=None, block_name='Real'):
         # Enter into the animation mode
         self.signal_monitor_widget.animation_mode()
 
@@ -1954,14 +1958,15 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
 
             Thread(
                 target=tssa_cls.update_score,
-                args=(pairs_delay,), daemon=True).start()
+                args=(pairs_delay, block_name), daemon=True).start()
 
         # Always update the tiny window
         # Draw the tiny window for pressure feedback
         mat = pil2rgb(tssa_cls.tiny_window(
-            ref=self.ref_value, data=pairs_delay))
+            ref=self.ref_value, data=pairs_delay, block_name=block_name))
+
         self.signal_monitor_widget.animation_img.setImage(
-            mat[::-1].transpose([1, 0, 2])
+            mat[::-1].transpose([1, 0, 2]), autoLevels=False
         )
 
     def update_animation_img(self, need_update_flag: bool, pairs_delay=None):
@@ -2081,7 +2086,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
         self._setup_frame_display_modes_inside_monitor()
 
         # The t0, t1 is the start, stop time of the incoming data
-        # The block_name is one of ['Real', 'Fake', 'Empty']
+        # The block_name is one of ['Real', 'Fake', 'Hide']
         t0, t1, block_name = current_block
 
         # Make sure the points inside the fake blocks are correctly re-assigned
@@ -2138,7 +2143,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 need_update_flag = True
 
             self.update_cat_leaves_submarine_animation(
-                need_update_flag, pairs_delay)
+                need_update_flag, pairs_delay, block_name)
             return
 
         # Display the cat-climbs-tree animation
@@ -2152,7 +2157,7 @@ class UserInterfaceWidget(QtWidgets.QMainWindow):
                 need_update_flag = True
 
             self.update_cat_climbs_tree_animation(
-                need_update_flag, pairs_delay)
+                need_update_flag, pairs_delay, block_name)
             return
 
         # Enter the curve mode for the monitor

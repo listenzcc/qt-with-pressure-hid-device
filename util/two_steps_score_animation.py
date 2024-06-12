@@ -246,7 +246,7 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
         finally:
             self.update_score_locked = False
 
-    def update_score(self, data: Any = None):
+    def update_score(self, data: Any = None, block_name: str = 'Real'):
         if self.update_score_locked:
             logger.warning('Update score is locked')
             return
@@ -263,18 +263,23 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
 
             logger.debug(f'Updated state from {state_before} to {state_after}')
 
-            self.mk_frames(state_before, state_after)
+            self.mk_frames(state_before, state_after, block_name)
 
-    def mk_frames(self, state_before, state_after):
+    def mk_frames(self, state_before, state_after, block_name='Real'):
 
         n_frames = 10
 
         image_size = (self.width, self.height)
 
+        flag_hide_block = block_name == 'Hide'
+
+        if flag_hide_block:
+            self.fifo_buffer.append(self.land_image.copy().resize(image_size))
+
         # --------------------
         # The 2nd state
         # Only choose the frames to display
-        if state_after['state'] == '2nd':
+        if not flag_hide_block and state_after['state'] == '2nd':
             score1 = state_before['score_2nd']
             score2 = state_after['score_2nd']
             diff = score2 - score1
@@ -294,7 +299,7 @@ class TwoStepScore_Animation_CatClimbsTree(TwoStepScorer, AutomaticAnimation):
         # --------------------
         # The 1st state
         # Put the submarine on the correct position
-        if state_after['state'] == '1st':
+        if not flag_hide_block and state_after['state'] == '1st':
             score1 = state_before['score_1st']
             score2 = state_after['score_1st']
 
@@ -419,7 +424,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         finally:
             self.update_score_locked = False
 
-    def update_score(self, data: Any = None):
+    def update_score(self, data: Any = None, block_name: str = 'Real'):
         if self.update_score_locked:
             logger.warning('Update score is locked')
             return
@@ -435,18 +440,23 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
                 data)
 
             logger.debug(f'Updated state from {state_before} to {state_after}')
-            self.mk_frames(state_before, state_after)
+            self.mk_frames(state_before, state_after, block_name)
 
-    def mk_frames(self, state_before, state_after):
+    def mk_frames(self, state_before, state_after, block_name='Real'):
 
         n_frames = 10
 
         image_size = (self.width, self.height)
 
+        flag_hide_block = block_name == 'Hide'
+
+        if flag_hide_block:
+            self.fifo_buffer.append(self.ocean_image.copy().resize(image_size))
+
         # --------------------
         # The 2nd state
         # Only choose the frames to display
-        if state_after['state'] == '2nd':
+        if not flag_hide_block and state_after['state'] == '2nd':
             score1 = state_before['score_2nd']
             score2 = state_after['score_2nd']
             diff = score2 - score1
@@ -462,7 +472,7 @@ class TwoStepScore_Animation_CatLeavesSubmarine(TwoStepScorer, AutomaticAnimatio
         # --------------------
         # The 1st state
         # Put the submarine on the correct position
-        if state_after['state'] == '1st':
+        if not flag_hide_block and state_after['state'] == '1st':
             score1 = state_before['score_1st']
             score2 = state_after['score_1st']
 
